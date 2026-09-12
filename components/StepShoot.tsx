@@ -233,6 +233,8 @@ export default function StepShoot() {
     frames,
     cursor,
     mirror,
+    mirrorPreference,
+    setMirror,
     countdownFrom,
     shooting,
     filterCss,
@@ -246,6 +248,27 @@ export default function StepShoot() {
 
   const filled = frames.filter(Boolean).length;
   const complete = template ? filled === template.slots.length : false;
+
+  // 🐛 Bug ditemukan (2026-09-13, uji lapangan): `mirror` di store itu
+  // dulu CUMA preferensi tema untuk kamera depan (session.mirror), tidak
+  // pernah dihitung ulang saat tamu membalik kamera ke belakang
+  // (environment) — padahal kamera belakang TIDAK PERNAH perlu efek
+  // cermin (orang lain melihat objeknya persis seperti dunia nyata).
+  // Akibatnya preview live DAN hasil akhir (StepResult/StripCanvas, yang
+  // sama-sama baca `mirror` dari store) ikut salah arah kalau tamu foto
+  // pakai kamera belakang.
+  //
+  // Diperbaiki dengan menjadikan `mirror` di store sebagai mirror EFEKTIF
+  // (bukan lagi preferensi statis) — effect ini men-sinkronkannya setiap
+  // kali `facing` berubah: kamera depan → balik ke preferensi tema asli
+  // (mirrorPreference), kamera belakang → SELALU false. Semua konsumen
+  // (StepShoot, StepResult, StripCanvas) baca `mirror` yang sama ini,
+  // jadi otomatis konsisten dari satu sumber, tidak perlu diganti
+  // satu-satu di tiap komponen.
+  useEffect(() => {
+    setMirror(facing === "user" ? mirrorPreference : false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facing, mirrorPreference, setMirror]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(clearTimeout);
@@ -541,6 +564,13 @@ export default function StepShoot() {
       {previewIndex !== null && frames[previewIndex] && (
         <ShotPreview
           bitmap={frames[previewIndex]!}
+          // Catatan: `mirror` di sini pakai status kamera SAAT INI, bukan
+          // status kamera waktu foto itu diambil — akurat untuk kasus umum
+          // (kamera tidak diganti selama strip), tapi kalau tamu ganti
+          // kamera di TENGAH sesi lalu buka thumbnail foto lama, arahnya
+          // bisa salah. Diterima sebagai batasan yang disengaja (lihat
+          // riwayat keputusan 2026-09-13) — perbaikan penuhnya butuh
+          // menyimpan info kamera per foto di store.ts.
           mirror={mirror}
           filterCss={filterCss}
           onClose={() => setPreviewIndex(null)}

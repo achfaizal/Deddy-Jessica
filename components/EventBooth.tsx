@@ -175,7 +175,7 @@ export default function EventBooth({
     // tetap aman, tidak terpotong ke atas.
     <div className="flex flex-1 flex-col justify-center">
     <main
-      className={`relative z-10 mx-auto w-full max-w-5xl px-4 pt-16 sm:px-8 sm:pt-10 ${
+      className={`relative z-10 mx-auto w-full max-w-5xl px-4 sm:px-8 ${
         // Watermark (EventTheme.brandWatermark) sekarang bisa 2 baris di HP
         // sempit (teks lebih panjang, mis. "© 2026 Circle Snap. All rights
         // reserved."), dan posisinya fixed bottom-2 — TIDAK ikut alur dokumen
@@ -185,6 +185,15 @@ export default function EventBooth({
         // watermark-nya memang ada — template lain (brandWatermark kosong)
         // tidak berubah sama sekali.
         brandWatermark ? "pb-14 sm:pb-20" : "pb-10 sm:pb-16"
+      } ${
+        // Logo (EventTheme.brandLogoUrl, fixed top-3 lebar 112px/tinggi
+        // ~52px) DUDUK DI ATAS header ini — pt-16 (64px) lama itu dihitung
+        // cuma untuk pil "Semua template" (lebih pendek), jadi logo
+        // wordmark yang lebih tinggi nyaris menabrak sapaan "Happy
+        // Wedding". Dinaikkan ke pt-24 KHUSUS saat logo ada, supaya ada
+        // jarak napas — template lain (brandLogoUrl kosong) tetap pt-16
+        // seperti sebelumnya.
+        brandLogoUrl ? "pt-24 sm:pt-20" : "pt-16 sm:pt-10"
       }`}
     >
       {/* pt-16 di mobile (BUKAN pt-5 seperti sebelumnya) — tautan "Semua
@@ -313,19 +322,23 @@ export default function EventBooth({
           ← Semua template
         </Link>
       )}
-      {/* Logo kecil (EventTheme.brandLogoUrl) — versi bergambar dari
+      {/* Logo (EventTheme.brandLogoUrl) — versi bergambar dari
           brandWatermark, tampil tengah-atas di SEMUA langkah (welcome
           sampai struk) karena ditaruh di wrapper ini, sama seperti
-          watermark teks di bawah. Opacity rendah (samar) DAN ukuran kecil
-          diminta eksplisit — "jangan terlalu tebal". pointer-events-none
-          supaya tidak pernah mencegat tap apa pun di bawahnya. */}
+          watermark teks di bawah. Wordmark (logo/4.png) lebar, bukan
+          persegi — dibatasi lewat WIDTH (bukan height tetap seperti versi
+          ikon sebelumnya), tinggi menyesuaikan otomatis. Warna putih ASLI
+          (tanpa opacity) diminta eksplisit — beda dari watermark teks di
+          bawah yang memang sengaja samar. top-6/top-8 (turun dari top-3/
+          top-4) memberi jarak dari tepi paling atas layar. pointer-events-
+          none supaya tidak pernah mencegat tap apa pun di bawahnya. */}
       {brandLogoUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={brandLogoUrl}
           alt=""
           aria-hidden
-          className="pointer-events-none fixed left-1/2 top-3 z-20 h-6 w-6 -translate-x-1/2 opacity-40 sm:top-4 sm:h-7 sm:w-7"
+          className="pointer-events-none fixed left-1/2 top-6 z-20 w-28 -translate-x-1/2 sm:top-8 sm:w-36"
         />
       )}
       {decorUrl && (

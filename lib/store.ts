@@ -47,7 +47,20 @@ interface SessionState {
   /** Jumlah "ulang" terpakai per slot, sejajar dengan `frames`. */
   retakes: number[];
   cursor: number;
+  /** Mirror EFEKTIF saat ini — dibaca StepShoot (preview live & review)
+      DAN StepResult/StripCanvas (hasil akhir: unduhan, strip, video).
+      Awalnya = preferensi tema (session.mirror), tapi StepShoot memanggil
+      setMirror() setiap kali kamera dibalik (lihat komentar di sana) —
+      jadi field ini SELALU representasi kamera yang SEDANG aktif, bukan
+      preferensi tema statis. Satu sumber ini dibaca semua konsumen supaya
+      hasil akhir (foto yang benar-benar diunduh tamu) konsisten dengan apa
+      yang mereka lihat di preview, bukan cuma preview-nya yang benar. */
   mirror: boolean;
+  /** Preferensi tema ASLI (session.mirror, diisi attach()) — dipakai
+      StepShoot untuk tahu harus balik ke mirror APA saat kamera kembali
+      ke depan (bukan asumsi selalu true). Tidak pernah diubah setelah
+      attach(), beda dari `mirror` di atas yang berubah-ubah ikut kamera. */
+  mirrorPreference: boolean;
   countdownFrom: number;
   autoContinue: boolean;
   shooting: boolean;
@@ -71,6 +84,7 @@ interface SessionState {
   retakeAt: (index: number) => void;
   canRetake: (index: number) => boolean;
   toggleMirror: () => void;
+  setMirror: (v: boolean) => void;
   setCountdown: (n: number) => void;
   toggleAuto: () => void;
   setShooting: (v: boolean) => void;
@@ -89,6 +103,7 @@ export const useSession = create<SessionState>((set, get) => ({
   retakes: [],
   cursor: 0,
   mirror: true,
+  mirrorPreference: true,
   countdownFrom: 3,
   autoContinue: true,
   shooting: false,
@@ -111,6 +126,7 @@ export const useSession = create<SessionState>((set, get) => ({
       countdownFrom: s.countdownSeconds,
       autoContinue: s.autoContinue,
       mirror: s.mirror,
+      mirrorPreference: s.mirror,
       maxRetakes: s.maxRetakes,
       revealMs: s.revealMs,
       filterCss: s.filterCss,
@@ -165,6 +181,7 @@ export const useSession = create<SessionState>((set, get) => ({
   canRetake: (index) => (get().retakes[index] ?? 0) < get().maxRetakes,
 
   toggleMirror: () => set((s) => ({ mirror: !s.mirror })),
+  setMirror: (v) => set({ mirror: v }),
   setCountdown: (n) => set({ countdownFrom: n }),
   toggleAuto: () => set((s) => ({ autoContinue: !s.autoContinue })),
   setShooting: (v) => set({ shooting: v }),
