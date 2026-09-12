@@ -1,13 +1,19 @@
-# Circle Snap Virtual Photobox — Playground Sesi Photobooth Event
+# Circle Snap — Playground Template Photobooth
 
-Prototipe alur tamu yang bisa dijalankan, untuk segmen **photobooth event
-berbasis kuota**: klien membeli paket (misalnya 200 strip), panitia menaruh QR
-di meja, tamu memindai dan langsung memotret tanpa memasang apa pun.
+Katalog template photobooth virtual berbasis browser: tiap template = satu
+tema/bingkai siap pakai (mis. **Lamaran**). Tamu memindai QR, memilih
+bingkai, berfoto, titip pesan suara, lalu unduh strip + video. Semua
+statis — tidak ada server, tidak ada database, tidak ada login.
 
-Alur yang dibangun:
+Ini bukan produk jadi, ini **playground**: tempat template baru
+dikumpulkan dan diuji sebelum (kalau nanti) dijadikan produk yang benar-
+benar dijual. Lihat [CLAUDE.md](CLAUDE.md) untuk aturan kerja & arah ke
+depan.
+
+Alur tamu:
 
 ```
-pindai QR  →  pilih bingkai  →  sesi foto (+ulang)  →  pesan suara  →  struk & unduh
+buka template  →  pilih bingkai  →  sesi foto (+ulang)  →  pesan suara  →  struk & unduh
 ```
 
 Stack: Next.js 15 (App Router) · TypeScript · Tailwind v4 · Zustand.
@@ -21,10 +27,12 @@ npm install
 npm run dev
 ```
 
-Buka `http://localhost:3008`, pilih salah satu event contoh.
+Buka `http://localhost:3008` — otomatis menampilkan template pertama di
+katalog (`lib/templates/index.ts`).
 
-**Kamera dan mikrofon hanya jalan di konteks aman.** `localhost` dihitung aman.
-Untuk uji dari HP, `http://192.168.x.x:3008` akan ditolak browser — pakai tunnel:
+**Kamera dan mikrofon hanya jalan di konteks aman.** `localhost` dihitung
+aman. Untuk uji dari HP, `http://192.168.x.x:3008` akan ditolak browser —
+pakai tunnel:
 
 ```bash
 npx localtunnel --port 3008
@@ -32,79 +40,9 @@ npx localtunnel --port 3008
 cloudflared tunnel --url http://localhost:3008
 ```
 
-Uji di HP itu wajib. Perilaku `getUserMedia` dan `MediaRecorder` di Safari iOS
-dan WebView Android berbeda cukup jauh dari Chrome desktop, dan hampir semua
-tamu event datang dari sana.
-
----
-
-## Tiga keputusan yang menentukan model bisnisnya
-
-**1. Nama pengantin tidak dibakar ke dalam PNG.**
-Kalau tiap pernikahan butuh file bingkai baru, kamu menjual jasa desain, bukan
-SaaS — dan biaya per klien tidak pernah turun. Di sini PNG hanya memuat kertas,
-garis, dan lubang foto. Nama, tanggal, tempat, dan tagar didefinisikan sebagai
-`textLayers` di `lib/templates.ts` dan digambar saat compositing dari data
-event. Satu bingkai melayani semua acara. Ukuran font mengecil otomatis kalau
-nama pasangannya panjang, karena kasus itu pasti terjadi.
-
-**2. Kuota dipotong per strip, bukan per jepretan.**
-Klien membeli 200 strip. Tamu yang mengulang foto lima kali tetap memakai satu
-jatah. Pemotongan terjadi sekali di layar struk (`StepResult`), dengan penjaga
-`useRef` supaya React Strict Mode tidak memotong dua kali di development.
-
-**3. Pesan suara menghasilkan video, bukan file audio terpisah.**
-Foto adalah komoditas; suara tamu tidak. Tapi rekaman `.webm` yang berdiri
-sendiri tidak akan pernah dibuka lagi. Jadi strip dan audio dijahit jadi video
-vertikal 1080×1920 lengkap dengan gelombang suara yang berjalan — langsung di
-perangkat, tanpa server encoding. Ini format yang bisa diunggah apa adanya ke
-Reels dan TikTok, dan itulah jalur penyebaran paling murah untuk produk ini.
-
----
-
-## Yang sudah berjalan
-
-| | |
-|---|---|
-| Event berbasis kode + kuota paket (localStorage) | ✅ |
-| Pilih bingkai dari daftar yang diizinkan event | ✅ |
-| Kamera, negosiasi resolusi bertingkat, ganti depan/belakang | ✅ |
-| Hitung mundur 0/3/5/10 detik + lanjut otomatis antar-foto | ✅ |
-| Ulang foto per slot tanpa mengulang sesi | ✅ |
-| Filter warna tetap, konsisten antara preview dan hasil | ✅ |
-| Teks event dinamis di bingkai + penyusutan font otomatis | ✅ |
-| Preview strip hidup memakai mesin yang sama dengan ekspor | ✅ |
-| Rekam pesan suara + meteran level | ✅ |
-| Ekspor video 1080×1920 dengan gelombang suara | ✅ |
-| Struk: nomor strip, isi sesi, sisa kuota | ✅ |
-| Unduh PNG/JPG resolusi cetak, Web Share dengan fallback | ✅ |
-| Reduced motion dihormati, fokus keyboard terlihat | ✅ |
-
----
-
-## Yang sengaja belum ada
-
-- Backend, autentikasi, dashboard admin
-- Upload cloud, galeri event, unduh massal untuk panitia
-- Generator QR (di playground, halaman depan menggantikan pemindai)
-- Antrean offline (IndexedDB + Background Sync)
-- Moderasi konten, watermark sponsor, GIF/boomerang
-- Billing dan pembelian paket
-
-Urutan berikutnya yang saya sarankan: **galeri event + unduh massal**, karena
-itu yang dibeli panitia (mereka mau semua foto tamu di akhir acara), lalu
-**antrean offline**, karena WiFi gedung resepsi jatuh persis saat ratusan tamu
-online bersamaan.
-
----
-
-## Catatan kompatibilitas
-
-`MediaRecorder` untuk video memilih MIME yang didukung secara berurutan: MP4
-lebih dulu (Safari modern), lalu WebM VP9/VP8. Di browser tanpa dukungan sama
-sekali, tombol video tidak muncul dan unduhan foto tetap berjalan normal.
-`ctx.filter` absen di sebagian WebView lama — foto tetap tersusun, hanya tanpa
-filter. Pola yang dipakai di seluruh kode: gagal pelan, jangan gagal total.
+Uji di HP itu wajib. Perilaku `getUserMedia` dan `MediaRecorder` di Safari
+iOS dan WebView Android berbeda cukup jauh dari Chrome desktop, dan hampir
+semua tamu event datang dari sana.
 
 ---
 
@@ -112,35 +50,113 @@ filter. Pola yang dipakai di seluruh kode: gagal pelan, jangan gagal total.
 
 ```
 app/
-  page.tsx                pengganti pemindai QR (khusus playground)
-  e/[code]/page.tsx       route sesi event
-  globals.css             design token + animasi "cuci film"
+  page.tsx                template pertama di katalog (root "/")
+  t/[id]/page.tsx          akses langsung per template lewat id-nya
+  globals.css              design token + animasi "cuci film"
 components/
-  EventBooth.tsx          header, kuota, router langkah
-  StepFrame.tsx           pilih bingkai
-  StepShoot.tsx           kamera, hitung mundur, ulang per slot
-  StepVoice.tsx           rekam pesan suara
-  StepResult.tsx          struk, unduh, bagikan
-  StripCanvas.tsx         preview strip hidup
+  EventBooth.tsx           header, kuota, router langkah
+  WelcomeScreen.tsx        layar sambutan + nama tamu
+  StepFrame.tsx            pilih bingkai
+  StepShoot.tsx            kamera, hitung mundur, ulang per slot
+  StepVoice.tsx            rekam pesan suara
+  StepResult.tsx           struk, unduh, bagikan
+  StripCanvas.tsx          preview strip hidup (mesin sama dengan ekspor)
+  FrameAssembly.tsx        reveal strip ala "struk keluar dari printer"
 lib/
-  event.ts                konfigurasi event + kuota (kandidat tabel DB)
-  templates.ts            bingkai + layer teks dinamis
-  compositor.ts           mesin compositing kanvas
-  camera.ts               getUserMedia + klasifikasi error
-  voice.ts                MediaRecorder audio + meteran level
-  video.ts                kartu video vertikal
-  filters.ts              filter untuk preview dan kanvas
-  store.ts                state machine sesi
-public/templates/*.png    overlay transparan tanpa teks
+  templates/
+    types.ts               semua tipe: EventConfig, EventTheme, Template, dst.
+    index.ts                katalog + util (tokensFor, kuota lokal, dst.)
+    lamaran.ts               template "Lamaran" (event + 3 bingkai)
+  compositor.ts             mesin compositing kanvas
+  camera.ts                 getUserMedia + klasifikasi error
+  voice.ts                  MediaRecorder audio + meteran level
+  video.ts                  kartu video vertikal
+  filters.ts                filter untuk preview dan kanvas
+  store.ts                  state machine sesi (Zustand)
+  copy.ts                   teks antarmuka + override per template
+public/templates/<id>/*.png   overlay bingkai, satu folder per template
 ```
 
-## Menambah bingkai
+## Menambah template baru
 
-1. Simpan PNG RGBA (transparan penuh di area foto, **tanpa teks apa pun**) di
-   `public/templates/<nama-event>/`.
-2. Tentukan koordinat slot foto dari kanal alpha PNG-nya (bukan ditaksir
-   manual) — area yang transparan penuh adalah lubang foto.
-3. Tambah entri di `TEMPLATES` (`lib/templates.ts`) dengan koordinat slot yang
-   sama persis dengan lubang di PNG, plus `textLayers` memakai token
-   `{{names}}`, `{{date}}`, `{{venue}}`, `{{hashtag}}`, `{{code}}` — kosongkan
-   `textLayers` kalau teks sudah tercetak di dalam PNG itu sendiri.
+1. Simpan PNG bingkai (RGBA, transparan penuh di area foto — area
+   transparan itu yang jadi lubang foto) di `public/templates/<id>/`.
+2. Salin pola `lib/templates/lamaran.ts`: satu berkas baru
+   `lib/templates/<id>.ts` berisi `event` (identitas + tema) dan `frames`
+   (daftar `Template`, koordinat slot dari kanal alpha PNG-nya, bukan
+   ditaksir manual).
+3. Daftarkan di `PLAYGROUND_TEMPLATES` (`lib/templates/index.ts`).
+4. `textLayers` (opsional per bingkai) pakai token `{{names}}` `{{date}}`
+   `{{venue}}` `{{hashtag}}` `{{code}}` — kosongkan kalau teks sudah
+   tercetak di dalam PNG itu sendiri.
+
+Tidak ada langkah lain. Tidak ada migrasi, tidak ada admin untuk diberi
+tahu — satu berkas + satu folder PNG = satu template baru.
+
+---
+
+## Tiga keputusan yang menentukan model bisnisnya (kalau ini jadi produk)
+
+**1. Nama tamu/acara tidak harus dibakar ke dalam PNG.**
+Kalau tiap acara butuh file bingkai baru, itu jasa desain, bukan SaaS —
+biaya per klien tidak pernah turun. `textLayers` opsional per bingkai
+memisahkan "yang berubah per acara" dari "yang tetap" — satu bingkai bisa
+melayani banyak acara kalau memang didesain begitu.
+
+**2. Kuota (kalau ada) dipotong per strip, bukan per jepretan.**
+Tamu yang mengulang foto tidak boleh menghabiskan paket lebih cepat.
+Pemotongan terjadi sekali di layar struk (`StepResult`), dengan penjaga
+`useRef` supaya React Strict Mode tidak memotong dua kali di development.
+
+**3. Pesan suara menghasilkan video, bukan file audio terpisah.**
+Foto adalah komoditas; suara tamu tidak. Strip dan audio dijahit jadi
+video vertikal 1080×1920 lengkap dengan gelombang suara yang berjalan —
+langsung di perangkat, tanpa server encoding. Format yang bisa diunggah
+apa adanya ke Reels dan TikTok.
+
+---
+
+## Yang sudah berjalan
+
+| | |
+|---|---|
+| Katalog template statis (satu berkas = satu template) | ✅ |
+| Pilih bingkai dari daftar template yang aktif | ✅ |
+| Kamera, negosiasi resolusi bertingkat, ganti depan/belakang | ✅ |
+| Hitung mundur 0/3/5/10 detik + lanjut otomatis antar-foto | ✅ |
+| Ulang foto per slot tanpa mengulang sesi | ✅ |
+| Filter warna tetap, konsisten antara preview dan hasil | ✅ |
+| Teks acara dinamis di bingkai + penyusutan font otomatis | ✅ |
+| Preview strip hidup memakai mesin yang sama dengan ekspor | ✅ |
+| Rekam pesan suara + meteran level | ✅ |
+| Ekspor video 1080×1920 dengan gelombang suara | ✅ |
+| Struk: nomor strip, isi sesi, sisa kuota (lokal) | ✅ |
+| Unduh PNG/JPG resolusi cetak, Web Share dengan fallback | ✅ |
+| Reduced motion dihormati, fokus keyboard terlihat | ✅ |
+
+## Yang sengaja belum ada
+
+Playground ini murni client-side — semua di bawah ini butuh backend, jadi
+sengaja tidak dikerjakan sampai (kalau) ada keputusan untuk membangun
+produknya sungguhan:
+
+- Backend, autentikasi, dashboard admin
+- Kuota yang benar-benar menegakkan lintas perangkat (sekarang cuma
+  localStorage per HP — lihat catatan di `lib/templates/index.ts`)
+- Katalog template multi-halaman (sekarang cuma root "/" + `/t/[id]`)
+- Upload cloud, galeri event, unduh massal untuk panitia
+- Generator QR (di playground, halaman depan menggantikan pemindai)
+- Antrean offline (IndexedDB + Background Sync)
+- Moderasi konten, watermark sponsor, GIF/boomerang
+- Billing dan pembelian paket
+
+---
+
+## Catatan kompatibilitas
+
+`MediaRecorder` untuk video memilih MIME yang didukung secara berurutan:
+MP4 lebih dulu (Safari modern), lalu WebM VP9/VP8. Di browser tanpa
+dukungan sama sekali, tombol video tidak muncul dan unduhan foto tetap
+berjalan normal. `ctx.filter` absen di sebagian WebView lama — foto tetap
+tersusun, hanya tanpa filter. Pola yang dipakai di seluruh kode: gagal
+pelan, jangan gagal total.

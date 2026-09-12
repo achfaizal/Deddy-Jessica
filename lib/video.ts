@@ -1,3 +1,6 @@
+import type { TextLayer } from "./templates";
+import { drawTextLayer } from "./compositor";
+
 /**
  * KARTU SUARA
  *
@@ -8,7 +11,10 @@
  *
  * Gerakannya sengaja minim: satu bar gelombang yang berjalan mengikuti audio.
  * Cukup untuk lolos deteksi "gambar diam" di platform, tanpa mengalihkan
- * perhatian dari fotonya.
+ * perhatian dari fotonya. Sejak videoTextOnBg (lihat VoiceCardOptions di
+ * bawah), teks di atas latar custom digambar lewat lib/compositor.ts
+ * (drawTextLayer) — SATU sistem yang sama dengan textLayers bingkai, bukan
+ * dihitung ulang sendiri di sini.
  */
 
 export interface VideoCardColors {
@@ -38,15 +44,35 @@ export interface VoiceCardOptions {
       kalau `bgVideo` diisi (latar penuh sudah punya dekorasinya sendiri). */
   decorUrl?: string;
   /** Latar penuh 1080×1920 siap pakai (sama dengan `EventTheme.videoBg`) —
-      kalau diisi, GANTIKAN latar putih + dekorasi sudut + sapaan/nama/
-      tanggal/hashtag yang biasanya digambar di sini, karena semua itu
-      sudah tercetak di dalam gambarnya sendiri. Cuma strip foto, gelombang
-      suara, dan nama tamu yang tetap digambar di atasnya. */
+      kalau diisi, GANTIKAN latar putih + dekorasi sudut. Sapaan/nama/
+      tanggal/hashtag di atasnya tergantung `bgVideoTextOnBg` di bawah. */
   bgVideo?: string;
+  /** Sama dengan `EventTheme.videoTextOnBg` — true = `bgVideo` versi TOKEN
+      (kosong di zona teks), sapaan+nama+tanggal WAJIB digambar dinamis di
+      atasnya (posisi khusus, beda dari layout latar putih bawaan — lihat
+      draw() di bawah). Kosong/false = `bgVideo` BAKED lengkap, tidak
+      digambar ulang (perilaku lama). Diabaikan kalau `bgVideo` kosong. */
+  bgVideoTextOnBg?: boolean;
+  /** Sama dengan `EventTheme.videoTextLayers` — dipakai HANYA kalau
+      `bgVideoTextOnBg` true, digambar lewat drawTextLayer() (lib/compositor.ts)
+      di atas `bgVideo`. Token yang bisa dipakai di teksnya: {{names}}
+      {{date}} {{venue}} {{hashtag}} {{code}} (sama dengan tokensFor()
+      biasa) DITAMBAH {{brandLabel}} — lihat penyusunan `tokens` di
+      renderVoiceCard(). Kosong = tidak ada apa pun digambar di jalur ini
+      (bgVideoTextOnBg seharusnya juga tidak diisi kalau ini kosong). */
+  videoTextLayers?: TextLayer[];
   /** Nama tamu yang mengirim pesan — dicetak sebagai "pesan suara dari
       {nama}" alih-alih generik, supaya pengantin tahu ucapan ini dari
-      siapa saat kartunya dibagikan/ditonton ulang. */
+      siapa saat kartunya dibagikan/ditonton ulang. Teks ini TIDAK
+      digambar sama sekali kalau `showCaption` false (lihat di bawah) —
+      guestName-nya sendiri tetap ada, cuma tidak dipakai. */
   guestName?: string;
+  /** Sama dengan `EventTheme.videoShowCaption` — false = caption "pesan
+      suara dari {nama}" TIDAK digambar di video sama sekali (diminta
+      eksplisit: nama pengirim cukup terlihat di galeri Momen — komponen
+      terpisah, MomentsGallery.tsx — bukan di video yang diunduh/
+      dibagikan). Kosong/true = perilaku lama, caption tetap digambar. */
+  showCaption?: boolean;
   /** Sapaan besar di atas nama, sama dengan header sesi (event.brandLabel)
       — "Happy Wedding" kalau kosong. */
   brandLabel?: string;
@@ -151,6 +177,9 @@ export async function renderVoiceCard({
   guestName,
   brandLabel,
   bgVideo,
+  bgVideoTextOnBg,
+  videoTextLayers,
+  showCaption = true,
   videoCard,
   onProgress,
 }: VoiceCardOptions): Promise<Blob> {
@@ -159,6 +188,11 @@ export async function renderVoiceCard({
   if (!mime || !videoSupported()) {
     throw new Error("Browser ini belum bisa membuat video. Unduh foto dan pesan suara terpisah.");
   }
+
+  // {{brandLabel}} DITAMBAHKAN di sini (bukan bagian tokensFor() global di
+  // lib/templates/index.ts) — cuma dipakai videoTextLayers, bukan konsep
+  // umum lintas playground.
+  const tokens = { names, date, hashtag, brandLabel: brandLabel ?? "Happy Wedding" };
 
   const ctx = new AudioContext();
   const decoded = await ctx.decodeAudioData(await audio.arrayBuffer());
@@ -244,11 +278,10 @@ export async function renderVoiceCard({
 
     g.textAlign = "center";
 
-    // Sapaan besar + nama + tanggal cuma digambar kalau TIDAK ada latar
-    // custom — kalau ada, semua itu sudah tercetak di dalam gambarnya
-    // sendiri (lihat bgVideo di EventTheme), gambar ulang di sini cuma
-    // bikin dobel.
     if (!background) {
+      // Latar putih bawaan — PERSIS perilaku lama, tidak disentuh sama
+      // sekali oleh videoTextOnBg/videoTextLayers (itu cuma buat latar
+      // custom, lihat blok else di bawah).
       // Sapaan besar pakai gradasi tema kartu video (videoCard.headingGradient
       // — bawaan lama ungu→pink→emas, bisa diganti admin lewat tab Tema).
       const heading = g.createLinearGradient(W / 2 - 220, 0, W / 2 + 220, 0);
@@ -266,38 +299,88 @@ export async function renderVoiceCard({
       g.fillStyle = vc.smoke;
       g.font = `26px ${mono}`;
       g.fillText(date, W / 2, 220);
+    } else if (bgVideoTextOnBg && videoTextLayers) {
+      // Latar custom versi TOKEN — gambar textLayers-nya lewat fungsi SAMA
+      // dengan bingkai (drawTextLayer, lib/compositor.ts), posisi/ukuran/
+      // warna semuanya data-driven dari EventTheme.videoTextLayers (bisa
+      // diedit lewat Builder → Edit Bingkai → "Kartu Video"), bukan
+      // hardcode di sini lagi. scale=1 karena videoTextLayers memang
+      // ditulis langsung dalam koordinat kanvas 1080×1920 penuh (sama
+      // seperti W/H di atas), tidak perlu diskalakan seperti pratinjau
+      // kecil di Builder.
+      for (const layer of videoTextLayers) {
+        g.save();
+        drawTextLayer(g, layer, tokens, 1);
+        g.restore();
+      }
     }
 
     // Gelombang: bagian yang sudah lewat berwarna terang, sisanya redup.
-    // Jarak ke strip dipersempit di latar custom (strip-nya lebih besar,
-    // ruang sisa di bawah lebih sempit sebelum masuk teks tanggal bawah).
-    const wy = sy + sh + (background ? 90 : 150);
-    const bw = 8;
-    const gap = 5;
-    const total = wave.length * (bw + gap) - gap;
+    //
+    // KHUSUS latar custom TANPA caption (wedding.ts, bgVideo BAKED penuh
+    // dengan "Happy Wedding" di atas ~y40-239 pada aset 864×1536 asli dan
+    // nama pasangan dibakar di ZONA BAWAH ~y1230-1400 — diverifikasi lewat
+    // scan piksel langsung ke bg-video.png, bukan ditaksir): dulu
+    // gelombang dipusatkan di SISA ruang DI BAWAH strip foto (sy+sh s/d
+    // H), yang ternyata jatuh tepat menabrak nama pasangan di bawah situ
+    // (dilaporkan lewat screenshot — gelombang menimpa "Deddy & Jessica").
+    // Dipindah ke CELAH DI ATAS strip (antara "Happy Wedding" yang berakhir
+    // ~y300 setelah di-scale ke kanvas 1920, dan strip yang mulai di
+    // sy=590) — celah ini kosong di desain aslinya, jadi aman dari teks
+    // apa pun. Kasus lain (showCaption true, dipakai template selain
+    // wedding.ts, ATAU tidak ada background sama sekali) TIDAK disentuh —
+    // posisi 90/150 di bawah strip di situ sudah diverifikasi lewat video
+    // sungguhan sebelumnya, jangan diubah.
+    const wy =
+      background && !showCaption
+        ? 445 // tengah celah ~300-590 di atas strip, di bawah "Happy Wedding"
+        : sy + sh + (background ? 90 : 150);
+    const bw = 6;
+    const gap = 4;
+    // Lebar total dibatasi (bukan lagi wave.length penuh 72 bar) — diminta
+    // eksplisit "jangan terlalu panjang". Dipangkas ke 40 bar tengah dari
+    // 72 titik data supaya tetap representatif gelombangnya tapi total
+    // lebar jauh lebih pendek (40*(6+4)-4 = 396px, dulu 72*(8+5)-5 = 931px
+    // hampir selebar kanvas 1080px).
+    const waveBars = background && !showCaption ? 40 : wave.length;
+    const waveOffset = background && !showCaption ? Math.floor((wave.length - waveBars) / 2) : 0;
+    const maxBarH = showCaption ? 130 : background ? 60 : 90;
+    const total = waveBars * (bw + gap) - gap;
     let x = (W - total) / 2;
-    wave.forEach((v, i) => {
-      const h = 12 + v * 130;
-      g.fillStyle = i / wave.length <= p ? vc.waveActive : vc.waveTrack;
+    // wave.slice(waveOffset, ...) — progres "aktif" (vc.waveActive) tetap
+    // dihitung dari posisi ASLI di seluruh 72 titik data (waveOffset + i),
+    // bukan dari 0, supaya bar tengah yang ditampilkan tetap sinkron
+    // dengan progres audio sesungguhnya (bukan selalu menyala duluan
+    // karena dianggap "awal" gelombang yang sudah dipotong).
+    wave.slice(waveOffset, waveOffset + waveBars).forEach((v, i) => {
+      const h = 12 + v * maxBarH;
+      g.fillStyle = (waveOffset + i) / wave.length <= p ? vc.waveActive : vc.waveTrack;
       g.fillRect(x, wy - h / 2, bw, h);
       x += bw + gap;
     });
 
-    // Nama tamu bisa panjang — kecilkan otomatis supaya caption tidak
-    // keluar dari kanvas, pola yang sama dengan nama pengantin di
-    // compositor.ts.
-    const caption = guestName ? `pesan suara dari ${guestName}` : "pesan suara dari tamu";
-    g.fillStyle = vc.smoke;
-    let captionSize = 24;
-    g.font = `${captionSize}px ${mono}`;
-    while (g.measureText(caption).width > W - 120 && captionSize > 14) {
-      captionSize -= 1;
+    // Caption "pesan suara dari {nama}" — TIDAK digambar sama sekali
+    // kalau showCaption false (diminta eksplisit: nama pengirim cukup
+    // terlihat di galeri Momen, bukan di video yang diunduh/dibagikan).
+    if (showCaption) {
+      // Nama tamu bisa panjang — kecilkan otomatis supaya caption tidak
+      // keluar dari kanvas, pola yang sama dengan nama pengantin di
+      // compositor.ts.
+      const caption = guestName ? `pesan suara dari ${guestName}` : "pesan suara dari tamu";
+      g.fillStyle = vc.smoke;
+      let captionSize = 24;
       g.font = `${captionSize}px ${mono}`;
+      while (g.measureText(caption).width > W - 120 && captionSize > 14) {
+        captionSize -= 1;
+        g.font = `${captionSize}px ${mono}`;
+      }
+      g.fillText(caption, W / 2, wy + (background ? 75 : 130));
     }
-    g.fillText(caption, W / 2, wy + (background ? 75 : 130));
 
-    // Hashtag juga cuma untuk latar default — di latar custom dianggap
-    // sudah cukup terwakili oleh brand yang tercetak di gambarnya.
+    // Hashtag cuma untuk latar putih bawaan — latar custom (baked MAUPUN
+    // token) tidak punya zona kosong buat ini di desainnya (cuma
+    // sapaan+nama di atas, tanggal di bawah — lihat blok tanggal di
+    // atas), dianggap sudah cukup terwakili oleh sapaan/nama.
     if (!background) {
       g.fillStyle = vc.ink;
       g.font = `500 30px ${display}`;

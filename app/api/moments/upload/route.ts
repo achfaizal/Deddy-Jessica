@@ -5,8 +5,15 @@ import { NextResponse } from "next/server";
  * Token upload dikeluarkan di server (route ini), tapi byte filenya lewat
  * langsung dari browser tamu ke Vercel Blob — TIDAK numpang lewat body
  * request Next.js. Video pesan suara bisa sampai ~10MB (15 detik pada
- * 6 Mbps), jauh di atas batas body request Vercel Functions (4.5MB), jadi
- * upload sisi-server biasa bukan opsi di sini.
+ * bitrate rekaman default), jauh di atas batas body request Vercel
+ * Functions (4.5MB), jadi upload sisi-server biasa bukan opsi di sini.
+ *
+ * Porting dari project glyka-virtual-photobooth, versi RINGKAS: di sana
+ * `onUploadCompleted` juga menulis baris ke Postgres (tabel `assets`,
+ * `markStripUploaded`) — playground ini SENGAJA tanpa database (lihat
+ * CLAUDE.md §2), jadi blok itu dihapus. File tetap tersimpan permanen di
+ * Blob; listing-nya (lib/moments.ts fetchMoments) dibaca langsung dari
+ * Blob API lewat GET /api/moments, bukan dari tabel.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
@@ -31,11 +38,10 @@ export async function POST(request: Request): Promise<NextResponse> {
           maximumSizeInBytes: 30 * 1024 * 1024,
         };
       },
-      onUploadCompleted: async () => {
-        // Tidak perlu aksi tambahan — file sudah ada di Blob dan langsung
-        // kelihatan lewat GET /api/moments (list by prefix), tidak ada
-        // database terpisah yang perlu disinkronkan.
-      },
+      // onUploadCompleted SENGAJA tidak diisi — tidak ada database di
+      // playground ini untuk dicatat. File sudah aman tersimpan di Blob
+      // begitu handleUpload selesai; itu satu-satunya "sumber kebenaran"
+      // untuk galeri Momen di sini.
     });
 
     return NextResponse.json(jsonResponse);

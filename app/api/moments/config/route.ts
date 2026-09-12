@@ -8,6 +8,10 @@ import { NextResponse } from "next/server";
  * ("blob", nulis ke Vercel Blob). Dicek di server (bukan lewat env
  * NEXT_PUBLIC_* di client) supaya tidak tergantung pengaturan expose
  * env var project yang bisa berubah-ubah.
+ *
+ * Porting dari project glyka-virtual-photobooth — versi RINGKAS (lihat
+ * lib/moments.ts): tanpa Postgres, listing dibaca langsung dari Blob API
+ * / filesystem lokal, bukan dari tabel `strips`/`assets`.
  */
 export async function GET() {
   const mode = process.env.VERCEL ? "blob" : "local";

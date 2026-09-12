@@ -81,7 +81,6 @@ export default function StepVoice() {
   return (
     <section className="step-enter mx-auto max-w-xl text-center">
       <h2 className="font-display text-2xl leading-tight tracking-tight">{copy.voiceTitle}</h2>
-      <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-smoke">{copy.voiceIntro}</p>
 
       <div className="mt-8 overflow-hidden rounded-2xl p-5 ring-1 ring-edge sm:p-6">
         {/* Meteran level: tanpa ini tamu tidak tahu mikrofonnya menangkap

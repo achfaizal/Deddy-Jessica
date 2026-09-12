@@ -7,6 +7,7 @@ export {
   Square,
   RotateCcw,
   ArrowRight,
+  ArrowLeft,
   Download,
   Image as ImageIcon,
   FileImage,
@@ -17,6 +18,23 @@ export {
   X,
   Play,
   Images,
+  // Dashboard (app/dashboard/**) — lihat app/globals.css §DASHBOARD.
+  LayoutGrid,
+  CalendarDays,
+  Menu,
+  Plus,
+  Save,
+  Check,
+  Eye,
+  RefreshCw,
+  Upload,
+  Type,
+  Palette,
+  Frame,
+  Sparkles,
+  Trash2,
+  Bold,
+  Italic,
 } from "lucide-react";
 
 export function RetakeIcon({ className }: { className?: string }) {

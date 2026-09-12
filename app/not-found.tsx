@@ -1,23 +1,13 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Frame, ArrowLeft } from "lucide-react";
 
 /**
- * Halaman 404 tunggal untuk seluruh app (§11.7 UI-UX-DESIGN-SYSTEM.md) —
- * sebelumnya tidak ada sama sekali, jatuh ke halaman bawaan Next.js yang
- * polos. Satu pola dipakai untuk 404 di sisi tamu maupun admin (link
- * "kembali" pintar: ke /admin kalau URL yang salah diawali /admin,
- * kalau tidak ke beranda tamu) — sesuai anjuran dokumen "bisa dipakai
- * ulang untuk error boundary/maintenance page" juga nantinya.
+ * Halaman 404 tunggal untuk seluruh app — sebelumnya tidak ada sama
+ * sekali, jatuh ke halaman bawaan Next.js yang polos.
  *
- * CTA SENGAJA radius 12 (bukan pill 100) — dokumen menegaskan ini beda
- * kesan dari CTA marketing: "lebih utility", bukan ajakan promosi. */
+ * CTA SENGAJA radius 12 (bukan pill 100) — beda kesan dari CTA marketing:
+ * lebih utility, bukan ajakan promosi. */
 export default function NotFound() {
-  const pathname = usePathname();
-  const isAdmin = pathname?.startsWith("/admin");
-
   return (
     <div
       style={{
@@ -44,7 +34,7 @@ export default function NotFound() {
           Halaman yang kamu cari sudah dipindah, dihapus, atau alamatnya salah ketik.
         </p>
         <Link
-          href={isAdmin ? "/admin" : "/"}
+          href="/"
           className="inline-flex items-center text-white"
           style={{
             gap: 8,
@@ -57,7 +47,7 @@ export default function NotFound() {
           }}
         >
           <ArrowLeft size={16} />
-          {isAdmin ? "Kembali ke Dashboard" : "Kembali ke Beranda"}
+          Kembali ke Beranda
         </Link>
       </div>
     </div>

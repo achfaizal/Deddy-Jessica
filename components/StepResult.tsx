@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canvasToBlob, compose, downloadBlob } from "@/lib/compositor";
-import { bumpUsed, receiptNo, tokensFor } from "@/lib/event";
+import { bumpUsed, receiptNo, tokensFor } from "@/lib/templates";
 import { uploadMoment } from "@/lib/moments";
 import { useSession } from "@/lib/store";
 import { renderVoiceCard, videoExtension, videoSupported } from "@/lib/video";
@@ -66,31 +66,25 @@ function Confetti() {
 export default function StepResult() {
   const claimed = useRef(false);
   const uploaded = useRef(false);
+  // ID momen dibuat sekali per sesi struk, disimpan di ref (bukan store —
+  // cuma dipakai di sini sebagai kunci baris IndexedDB, lihat lib/moments.ts)
+  // supaya tidak bentrok dengan momentId tamu lain yang kebetulan dapat
+  // nomor struk (receipt) yang sama dari HP berbeda.
+  const momentIdRef = useRef<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
   const [momentsOpen, setMomentsOpen] = useState(false);
-  const [quotaExhausted, setQuotaExhausted] = useState(false);
 
-  const {
-    event,
-    template,
-    frames,
-    mirror,
-    voice,
-    receipt,
-    momentId,
-    finish,
-    guestName,
-    filterCss,
-  } = useSession();
+  const { event, template, frames, mirror, voice, receipt, finish, guestName, filterCss } =
+    useSession();
 
-  /* Tombol unduh & bagikan mana yang tampil — diatur klien lewat Visual
-     Builder (session.share.*). Default SEMUA menyala supaya event lama
-     yang datanya belum punya field ini tidak kehilangan tombol apa pun.
-     `shareCount` dipakai untuk lebar kolom, supaya sisa tombol tetap rapi
-     memenuhi baris walau salah satunya dimatikan. */
+  /* Tombol unduh & bagikan mana yang tampil — diatur per template
+     (session.share.*). Default SEMUA menyala supaya template tanpa field
+     ini tidak kehilangan tombol apa pun. `shareCount` dipakai untuk lebar
+     kolom, supaya sisa tombol tetap rapi memenuhi baris walau salah
+     satunya dimatikan. */
   const share = {
     downloadPng: event?.session?.share?.downloadPng ?? true,
     downloadJpg: event?.session?.share?.downloadJpg ?? true,
@@ -100,75 +94,27 @@ export default function StepResult() {
     nativeShare: event?.session?.share?.nativeShare ?? true,
   };
   const shareCount = [share.instagram, share.whatsapp, share.nativeShare].filter(Boolean).length;
-  // Sama seperti WelcomeScreen.tsx: "expired" (masa aktif 7 hari habis)
-  // JUGA mengunci galeri, beda dari "ended" yang sengaja tetap membukanya.
-  const momentsEnabled = (event?.session?.moments?.enabled ?? true) && event?.status !== "expired";
+  const momentsEnabled = event?.session?.moments?.enabled ?? true;
 
   /* Kuota dipotong tepat satu kali saat strip selesai, bukan per jepretan.
-     Klien membeli strip — tamu yang mengulang foto tidak boleh menghabiskan
-     paket lebih cepat. Ref penjaga mencegah React Strict Mode memotong dua kali.
+     Klien "membeli" strip — tamu yang mengulang foto tidak boleh
+     menghabiskan paket lebih cepat. Ref penjaga mencegah React Strict Mode
+     memotong dua kali di development.
 
-     Diklaim ke server (POST /api/quota/claim), bukan localStorage lagi —
-     lihat docs/blueprint/06-temuan-risiko.md temuan T1: localStorage
-     tidak pernah benar-benar membatasi apa pun karena tiap HP tamu mulai
-     dari 0 sendiri-sendiri. `event.id` cuma kosong untuk event lama yang
-     belum lewat repository (lib/adapters/legacy.ts) — jaring pengaman
-     lokal itu boleh dihapus begitu semua event sudah lewat repo. */
+     Playground ini tidak punya server, jadi kuota murni localStorage di
+     perangkat tamu (lib/templates/index.ts § kuota lokal) — cukup untuk
+     memperagakan "paket habis", bukan untuk menegakkannya sungguhan lintas
+     perangkat. */
   useEffect(() => {
     if (!event || claimed.current || receipt) return;
     claimed.current = true;
 
-    (async () => {
-      if (!event.id) {
-        const next = bumpUsed(event.code);
-        finish(receiptNo(event.code, next), next);
-        setCelebrate(true);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/quota/claim", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ eventId: event.id }),
-        });
-
-        if (res.status === 409) {
-          setQuotaExhausted(true);
-          return;
-        }
-        if (!res.ok) throw new Error("Klaim kuota gagal.");
-
-        const data = (await res.json()) as { used: number };
-        finish(receiptNo(event.code, data.used), data.used);
-        setCelebrate(true);
-      } catch {
-        // Server tidak terjangkau (offline dsb.) — gagal pelan, jangan
-        // kunci tamu di layar kosong. Nomor struk lokal tetap keluar;
-        // konsekuensinya kuota bisa sedikit terlewati kalau ini sering
-        // terjadi, tapi itu lebih murah daripada tamu kecewa di acara
-        // orang (lihat docs/blueprint/04-arsitektur.md bagian 6).
-        const next = bumpUsed(event.code);
-        finish(receiptNo(event.code, next), next);
-        setCelebrate(true);
-      }
-    })();
+    const next = bumpUsed(event.code);
+    finish(receiptNo(event.code, next), next);
+    setCelebrate(true);
   }, [event, receipt, finish]);
 
   if (!event || !template) return null;
-
-  if (quotaExhausted) {
-    return (
-      <section className="step-enter mx-auto max-w-md rounded-2xl p-8 text-center ring-1 ring-edge">
-        <h2 className="font-display text-xl">Yah, kuota baru saja habis</h2>
-        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-smoke">
-          Paket foto untuk acara ini sudah terpakai semua tepat saat strip kamu
-          selesai. Fotomu tetap ada di kamera — tangkap layar untuk menyimpannya,
-          atau hubungi panitia kalau butuh bantuan.
-        </p>
-      </section>
-    );
-  }
 
   const render = () =>
     compose({
@@ -181,13 +127,19 @@ export default function StepResult() {
     });
 
   /* Otomatis tersimpan ke galeri "Momen" begitu struk keluar — tidak nunggu
-     tamu klik unduh apa pun, supaya "semua yang sudah photobooth" beneran
-     tercatat, bukan cuma yang sempat-sempatnya unduh manual. Gagal upload
-     (mis. lagi offline) sengaja diam saja — tamu tetap dapat struk dan bisa
-     unduh manual, jangan sampai fitur sampingan ini mengganggu alur utama. */
+     tamu klik unduh apa pun. Gagal simpan (mis. IndexedDB penuh/diblokir)
+     sengaja diam saja — tamu tetap dapat struk dan bisa unduh manual,
+     jangan sampai fitur sampingan ini mengganggu alur utama. */
   useEffect(() => {
-    if (!event || !template || !receipt || !momentId || uploaded.current) return;
+    if (!event || !template || !receipt || !momentsEnabled || uploaded.current) return;
     uploaded.current = true;
+    if (!momentIdRef.current) {
+      momentIdRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    const momentId = momentIdRef.current;
 
     (async () => {
       try {
@@ -204,26 +156,27 @@ export default function StepResult() {
             guestName: guestName || undefined,
             brandLabel: event.brandLabel,
             bgVideo: event.theme?.videoBg,
+            bgVideoTextOnBg: event.theme?.videoTextOnBg,
+            videoTextLayers: event.theme?.videoTextLayers,
+            showCaption: event.theme?.videoShowCaption ?? true,
             videoCard: event.theme?.videoCard,
           }).catch(() => null);
         }
         await uploadMoment({
           eventCode: event.code,
-          // ID unik per-sesi (crypto.randomUUID), BUKAN receipt — receipt
-          // cuma nomor struk lokal HP tamu ini, dua tamu beda HP bisa
-          // sama-sama dapat receipt #1 dan saling menimpa momen storage
-          // masing-masing kalau dipakai sebagai kunci di sini.
           momentId,
           photo: photoBlob,
           video: videoBlob,
           guestName: guestName || undefined,
         });
       } catch {
-        // offline / Blob belum siap — bukan alasan mengganggu tamu.
+        // Upload ke server (Vercel Blob / local dev, lihat lib/moments.ts)
+        // gagal walau sudah retry — bukan alasan mengganggu tamu, mereka
+        // tetap dapat struknya sendiri lewat unduhan manual di bawah.
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt, momentId]);
+  }, [receipt, momentsEnabled]);
 
   // receipt sudah punya prefix pendek turunan dari kode event (mis.
   // "ENG-0001") — tidak perlu ditempel lagi dengan slug kode event penuh,
@@ -260,6 +213,9 @@ export default function StepResult() {
         guestName: guestName || undefined,
         brandLabel: event.brandLabel,
         bgVideo: event.theme?.videoBg,
+        bgVideoTextOnBg: event.theme?.videoTextOnBg,
+        videoTextLayers: event.theme?.videoTextLayers,
+        showCaption: event.theme?.videoShowCaption ?? true,
         videoCard: event.theme?.videoCard,
         onProgress: setProgress,
       });

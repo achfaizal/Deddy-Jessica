@@ -10,6 +10,13 @@ import { NextResponse } from "next/server";
  * di-deploy ke Vercel: filesystem-nya read-only & sementara di sana, jadi
  * upload akan terlihat "berhasil" padahal filenya lenyap begitu request
  * selesai — lebih baik gagal jelas daripada gagal diam-diam.
+ *
+ * Porting dari project glyka-virtual-photobooth, versi RINGKAS: TIDAK ada
+ * stripImageMetadata() (util itu tidak ada di playground ini) dan TIDAK
+ * ada penulisan ke Postgres (`assets`/`markStripUploaded`) — playground
+ * ini sengaja tanpa database (CLAUDE.md §2). guestName dilampirkan sebagai
+ * sidecar JSON kecil ({momentId}.json) di folder yang sama, dibaca lagi
+ * oleh GET /api/moments (bukan dari Postgres seperti versi asal).
  */
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
 const MOMENTS_DIR = path.join(process.cwd(), "public", "moments-local");
@@ -27,16 +34,7 @@ export async function POST(request: Request) {
   const momentId = String(form.get("momentId") ?? "");
   const photo = form.get("photo");
   const video = form.get("video");
-  // Karakter kontrol (newline dkk, bukan spasi) dibuang — nama ini nanti
-  // dicetak ke canvas video dan disimpan sebagai JSON, jangan sampai
-  // newline/karakter aneh dari clipboard tamu merusak tampilan atau file
-  // JSON-nya.
-  // eslint-disable-next-line no-control-regex
-  const CONTROL_CHARS = /[\x00-\x1F\x7F]/g;
-  const guestName = String(form.get("guestName") ?? "")
-    .replace(CONTROL_CHARS, "")
-    .trim()
-    .slice(0, 40);
+  const guestName = form.get("guestName");
 
   if (!SAFE_ID.test(eventCode) || !SAFE_ID.test(momentId)) {
     return NextResponse.json({ error: "eventCode/momentId tidak valid." }, { status: 400 });
@@ -55,8 +53,14 @@ export async function POST(request: Request) {
     await writeFile(path.join(dir, `${momentId}.${ext}`), Buffer.from(await video.arrayBuffer()));
   }
 
-  if (guestName) {
-    await writeFile(path.join(dir, `${momentId}.json`), JSON.stringify({ name: guestName }));
+  // Sidecar kecil, bukan database — satu-satunya jalan versi ringkas ini
+  // menyimpan nama tamu (versi asal glyka menulisnya ke Postgres
+  // `sessions.guest_name`, yang tidak ada di playground ini).
+  if (typeof guestName === "string" && guestName.trim()) {
+    await writeFile(
+      path.join(dir, `${momentId}.json`),
+      JSON.stringify({ guestName: guestName.trim() })
+    );
   }
 
   return NextResponse.json({ ok: true });

@@ -1,59 +1,50 @@
-# CLAUDE.md — Circle Snap Virtual Booth
+# CLAUDE.md — Circle Snap Playground
 
 Berkas ini dibaca otomatis setiap sesi. Isinya mengikat.
 
 ---
 
-## 1. Produk ini
+## 1. Apa ini
 
-Photobooth virtual berbasis browser yang dijual sebagai SaaS. Klien membeli
-**strip** (satu hasil cetak digital yang dibawa pulang tamu), memasang QR di
-lokasi acara, dan tamu berfoto lewat browser tanpa memasang aplikasi.
+Playground template photobooth virtual: kumpulan template siap pakai
+(tema + bingkai + alur tamu lengkap), semuanya statis — tidak ada
+database, tidak ada login, tidak ada server. Satu template = satu berkas
+di `lib/templates/` + satu folder PNG di `public/templates/`.
 
-Dua jenis pembeli:
+**Ini bukan produk jadi.** Tujuannya sekarang: kumpulkan sebanyak mungkin
+template yang bekerja dan enak dipakai. Kalau nanti ada keputusan untuk
+menjadikan ini produk yang dijual (orang bisa "beli" virtual photobooth),
+itu tahap terpisah yang butuh perencanaan sendiri — jangan diam-diam mulai
+membangun backend/pembayaran/admin di tengah kerja menambah template,
+tanya dulu.
 
-- **Perorangan** — punya satu hajat, beli paket terikat satu acara, boleh beli
-  lagi untuk acara berikutnya
-- **Vendor/EO** — beli saldo besar (min 600 strip) ke dompet akun, lalu
-  dibagikan sendiri ke beberapa acara
-
-Admin menyiapkan bahan bakunya lewat CMS: kategori, template playground,
-bingkai, paket.
+Lihat [README.md](README.md) untuk cara menjalankan dan cara menambah
+template baru.
 
 ---
 
-## 2. Sumber kebenaran
+## 2. Riwayat penting
 
-Urutan wewenang, dari paling tinggi:
+Repo ini pernah berkembang jadi CMS penuh (portal admin, akun klien,
+Postgres, billing, orders, staff) di riwayat git-nya. Semua itu **sengaja
+dicabut** (2026-08-18) untuk kembali ke playground statis murni — kodenya
+sudah dibangun terlalu jauh ke arah SaaS sebelum arah produknya sendiri
+jelas. Kalau butuh melihat bagaimana itu diimplementasikan dulu, ada di
+git history (branch lain / commit sebelum pencabutan), bukan didesain
+ulang dari nol.
 
-1. **`docs/brd/`** — Business Requirements Document. Ini yang menang.
-2. `docs/ADMIN-DESIGN-BRIEF.md` — arah visual portal admin
-3. `docs/ALUR-PLAYGROUND.md` — aturan membuat template, kecuali yang dibatalkan di BRD dok 09
-4. Kode yang sudah ada
+**Jangan menambahkan kembali:** login/auth, database, endpoint `/api/*`,
+upload cloud, sistem pembayaran — kecuali diminta eksplisit, karena itu
+tandanya arah produk sudah diputuskan dan perlu perencanaan sendiri (lihat
+§1).
 
-> **Kode menyesuaikan BRD, bukan sebaliknya.**
-> Kalau saat coding ada aturan BRD yang tidak masuk akal atau tidak mungkin
-> dikerjakan, **berhenti dan bilang.** Jangan diam-diam menyimpang. Kalau
-> disepakati berubah, catat di `docs/brd/09-DELTA-DARI-IMPLEMENTASI.md` §7
-> sebelum menulis kode.
-
-### Peta BRD
-
-| Butuh tahu soal… | Baca |
-|---|---|
-| Apa yang bertentangan dengan kode sekarang + urutan kerja | `09-DELTA-DARI-IMPLEMENTASI.md` |
-| Glosarium + 22 aturan bisnis (AB-01…AB-22) | `00-RINGKASAN-DAN-ATURAN-BISNIS.md` |
-| Siapa boleh apa | `01-AKTOR-PERAN-DAN-HAK-AKSES.md` |
-| Paket, dompet, buku besar kuota, pesanan | `02-MODEL-KOMERSIAL-DAN-KUOTA.md` |
-| Tabel & field | `03-MODEL-DATA.md` |
-| Portal admin | `04-PORTAL-ADMIN.md` |
-| Portal klien | `05-PORTAL-KLIEN.md` |
-| Template, bingkai, Visual Builder | `06-TEMPLATE-BINGKAI-VISUAL-BUILDER.md` |
-| Booth tamu & klaim kuota | `07-PENGALAMAN-TAMU.md` |
-| Keamanan, privasi, performa | `08-NONFUNGSIONAL.md` |
-
-**Jangan mengarang aturan bisnis.** Kalau BRD tidak menyebut sesuatu, tanya —
-jangan pilih sendiri lalu lanjut.
+**Pengecualian yang sudah diminta eksplisit (2026-09-13):** `app/api/moments/*`
++ `lib/moments.ts` (Vercel Blob di production, folder lokal saat dev) —
+diporting RINGKAS dari project glyka-virtual-photobooth (TANPA Postgres,
+listing dibaca langsung dari Blob API/filesystem, bukan tabel) supaya
+galeri "Momen" tersimpan bersama lintas HP tamu untuk acara wedding.ts
+sungguhan. Ini bukan izin diam-diam menambah endpoint lain — tetap tanya
+dulu untuk `/api/*` di luar `moments/*` ini.
 
 ---
 
@@ -61,17 +52,21 @@ jangan pilih sendiri lalu lanjut.
 
 ### Sebelum menulis kode
 
-1. Baca bagian BRD yang relevan dengan tugasnya
-2. Sampaikan **rencana singkat**: file apa yang disentuh, aturan BRD mana yang
-   berlaku, apa yang tidak dikerjakan
-3. **Tunggu konfirmasi** sebelum mulai
+1. Kalau tugasnya "tambah template baru": ikuti pola di README §"Menambah
+   template baru" — tidak perlu izin, itu memang tujuan playground ini.
+2. Kalau tugasnya menyentuh struktur (lib/templates/types.ts, EventBooth,
+   store, compositor) atau menambah dependency/backend baru: sampaikan
+   rencana singkat dulu (file apa yang disentuh, apa yang tidak
+   dikerjakan), tunggu konfirmasi.
 
 ### Saat mengerjakan
 
-- Kerjakan **bertahap**, berhenti di setiap tahap untuk konfirmasi. Jangan
-  menghasilkan semuanya sekaligus.
-- Satu tahap = satu hal yang bisa diuji sendiri
-- Kalau menemukan pertentangan dengan BRD di tengah jalan, berhenti dan bilang
+- Satu template = satu berkas (`lib/templates/<id>.ts`) + satu folder PNG
+  (`public/templates/<id>/`). Jangan pecah satu template ke banyak
+  berkas kecil — itu yang membuat "tambah template" jadi mahal.
+- Kalau menemukan template lama (git history) yang bisa dipakai ulang,
+  bilang dulu sebelum menghidupkannya kembali — mungkin asetnya sudah
+  tidak relevan.
 
 ### Setelah selesai
 
@@ -83,76 +78,32 @@ jangan pilih sendiri lalu lanjut.
 
 ## 4. Aturan yang tidak boleh dilanggar
 
-Ini yang paling mudah rusak tanpa sengaja. Setiap butir merujuk kode aturan di
-BRD.
+**Bingkai (PNG overlay) tidak boleh memuat teks yang berubah per acara.**
+Nama, tanggal, tempat, tagar didefinisikan sebagai `textLayers`
+(`lib/templates/types.ts`) dan digambar saat compositing dari data event —
+supaya satu bingkai bisa dipakai ulang lintas acara kalau memang didesain
+begitu. (Boleh dilanggar sengaja per-bingkai kalau memang bingkainya
+dirancang khusus satu acara — kosongkan `textLayers` di kasus itu, jangan
+setengah-setengah.)
 
-### Kuota & uang
+**`filterCss` satu string dipakai di dua tempat** — `style.filter` pada
+`<video>` dan `ctx.filter` saat compositing (`lib/compositor.ts`). Kalau
+dipisah, hasil unduhan beda dengan yang dilihat tamu.
 
-**K1 · Kuota diputuskan server, tidak pernah oleh perangkat tamu.** (AB-02)
-Klaim atomik dengan kunci baris. Dua tamu menekan bersamaan saat sisa 1 harus
-menghasilkan tepat 1 sukses.
+**Gagal pelan, jangan gagal total.** `ctx.filter` absen di WebView lama →
+foto tetap tersusun tanpa filter. Overlay gagal dimuat → foto tamu tidak
+hilang. `MediaRecorder` tidak didukung → tombol video tidak muncul, unduh
+foto tetap jalan.
 
-**K2 · Kuota adalah buku besar, bukan penghitung.** (AB-03)
-Saldo dihitung dari jurnal `quota_ledger`, bukan disimpan sebagai angka. Baris
-jurnal hanya boleh `INSERT` — tidak pernah `UPDATE` atau `DELETE`. Koreksi
-dilakukan dengan menambah baris berlawanan.
+**Kuota (`lib/templates/index.ts`) murni localStorage per perangkat.**
+Ini demonstrasi perilaku "paket habis", bukan penegakan sungguhan — dua
+tamu di dua HP sama-sama mulai dari 0. Jangan berpura-pura ini
+server-authoritative di kode atau di teks yang dilihat tamu.
 
-**K3 · Satu sesi selesai = satu strip = satu kuota.** (AB-01)
-Mengulang jepretan tidak memotong kuota tambahan.
-
-**K4 · Jangan pernah menyusun strip sebelum klaim kuota berhasil.**
-Kalau urutannya terbalik, tamu dapat foto yang tidak tercatat dan klien merasa
-kuotanya bocor.
-
-### Data & isolasi
-
-**K5 · Setiap kueri data klien wajib ter-scope ke `account_id`.**
-Di lapisan akses data, bukan di controller. Periksa juga **kepemilikan objek**,
-bukan hanya peran — ini sumber kebocoran antar-klien paling umum.
-
-**K6 · Galeri privat secara bawaan.** (`gallery_public = false`)
-Acara ulang tahun anak berisi foto anak di bawah umur.
-
-**K7 · Bersihkan EXIF dari semua gambar yang diunggah.**
-Foto HP tamu membawa koordinat GPS rumahnya.
-
-### Template & bingkai
-
-**K8 · Template adalah kelas, acara adalah instans.** (AB-13)
-Tidak ada satu pun operasi klien yang menulis ke `templates`,
-`template_variables`, atau `template_frames`. Semua tulisan klien jatuh ke
-`event_*`.
-
-**K9 · Acara `live` memakai `template_snapshot` yang dibekukan.** (AB-14)
-Perbaikan template tidak boleh mengubah acara yang sedang berjalan.
-
-**K10 · Bingkai tidak boleh memuat teks tercetak.** (AB-18)
-Nama dan tanggal selalu lewat layer teks bertoken yang digambar saat
-compositing.
-
-**K11 · Klien mengubah isi, bukan desain.** (AB-15)
-Warna, font, posisi terkunci. Kalau klien butuh tampilan lain, jawabannya
-template baru — **bukan tombol baru di Visual Builder.**
-
-**K12 · Setiap acara wajib punya minimal satu bingkai aktif.** (AB-17)
-Tanpa ini tamu buntu total di layar Pilih Bingkai.
-
-### Booth tamu
-
-**K13 · `filterCss` satu string dipakai di dua tempat** — `style.filter` pada
-`<video>` dan `ctx.filter` saat compositing. Kalau dipisah, hasil unduhan beda
-dengan yang dilihat tamu.
-
-**K14 · Gagal pelan, jangan gagal total.**
-`ctx.filter` absen di WebView lama → foto tetap tersusun tanpa filter. Overlay
-gagal dimuat → foto tamu tidak hilang. `MediaRecorder` tidak didukung → tombol
-video tidak muncul, unduh foto tetap jalan.
-
-**K15 · `ended` ≠ `expired`.** (AB-11)
-`ended` = keputusan klien, galeri **tetap terbuka**. `expired` = batas
-komersial, semuanya terkunci.
-
-**K16 · Masa aktif dihitung dari jadwal mulai, bukan tanggal publikasi.** (AB-09)
+**Menambah font baru wajib 3 langkah sinkron** (lihat komentar di
+`app/layout.tsx`): impor lewat `next/font`, ekspos `--canvas-font-<id>` di
+`<html>`, isi `fontDisplay` **dan** `canvasFontDisplay` di tema template.
+Lupa salah satu = teks di layar beda font dengan hasil unduhan.
 
 ---
 
@@ -176,20 +127,9 @@ komersial, semuanya terkunci.
 - Pesan error ditulis untuk pengguna, bukan developer. Sebutkan apa yang
   terjadi dan langkah berikutnya.
 
-### Rute
-
-| Prefix | Untuk |
-|---|---|
-| `/admin/*` | Staf platform (super admin, admin, support) |
-| `/app/*` | Klien (owner, manager, operator) |
-| `/e/{slug}` | Booth tamu, publik |
-
-Jangan campur. Portal klien yang sekarang ada di `/admin/*` harus pindah ke
-`/app/*` (BRD D-25).
-
 ### Git
 
-- Pesan commit Bahasa Indonesia, imperatif: "Tambah validasi bingkai"
+- Pesan commit Bahasa Indonesia, imperatif: "Tambah template Wedding Klasik"
 - **Jangan pernah menambahkan `Co-Authored-By` atau atribusi apa pun**
 - Satu commit = satu perubahan yang masuk akal berdiri sendiri
 
@@ -198,50 +138,18 @@ Jangan campur. Portal klien yang sekarang ada di `/admin/*` harus pindah ke
 ## 6. Larangan
 
 - Menambah dependensi tanpa bertanya dulu
-- `localStorage` / `sessionStorage` untuk data yang seharusnya di server
-- Menyimpan kuota, harga, atau aturan bisnis sebagai konstanta di kode — semua
-  dari database
-- Menulis nama pengantin ke dalam berkas PNG
-- Membuat sidebar di portal admin (lihat `ADMIN-DESIGN-BRIEF.md` §11)
-- `box-shadow` melayang, radius > 2px, atau gradien di portal admin
-- Menghapus baris `quota_ledger`
-- Mengubah berkas di `docs/` tanpa diminta
-- Menjalankan migrasi database tanpa konfirmasi
-- Mengarang angka, harga, atau nama paket yang tidak ada di BRD
+- Database, login, atau endpoint `/api/*` tanpa diminta eksplisit (§2)
+- Menulis nama tamu/acara langsung ke dalam berkas PNG bingkai
+- Mengarang aturan bisnis (harga paket, kuota) — kalau belum ada
+  keputusannya, tanya, jangan pilih sendiri lalu lanjut
 
 ---
 
 ## 7. Selesai artinya
 
-Sebuah tugas dianggap selesai kalau:
-
 - [ ] `npx tsc --noEmit` bersih
 - [ ] `npm run build` lolos
-- [ ] Aturan BRD yang relevan benar-benar ditegakkan, bukan sekadar tidak
-      dilanggar
 - [ ] Kondisi kosong dan kondisi gagal punya tampilan sendiri
 - [ ] Teks pengguna Bahasa Indonesia
 - [ ] Kalau menyentuh booth: diuji di viewport 390px
-- [ ] Kalau menyentuh kuota: ada uji serentak
 - [ ] Yang belum dikerjakan dilaporkan terus terang
-
----
-
-## 8. Prioritas sekarang
-
-Ikuti urutan di `docs/brd/09-DELTA-DARI-IMPLEMENTASI.md` §5. Ringkasnya:
-
-**Tahap 1 — Fondasi data.** Skema DB, pindahkan template dari JSON ke tabel,
-akun & jenis akun, buku besar kuota & dompet.
-
-> Jangan lanjut ke tahap 2 sebelum uji serentak klaim kuota lulus.
-
-**Tahap 2 — Portal Admin minimum.** Kategori, template, bingkai + validator,
-paket, pesanan.
-
-**Tahap 3 — Portal Klien sesuai BRD.** Pindah rute, wizard 3 langkah, cabut
-kunci satu acara, alokasi dompet, Visual Builder dinamis, unggah bingkai
-klien, gerbang publikasi 11 poin, snapshot template.
-
-Empat hal yang jangan ditunda karena makin mahal kalau belakangan: buku besar
-kuota, multi-akun, snapshot template, pembersihan EXIF + galeri privat.

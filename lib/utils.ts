@@ -1,17 +1,14 @@
 /**
- * Helper umum lintas admin — mengikuti §16 UI-UX-DESIGN-SYSTEM.md.
+ * Helper umum lintas dashboard (app/dashboard/**) — mengikuti §16
+ * UI-UX-DESIGN-SYSTEM.md.
  *
  * `showToast()` ada supaya pemanggil tidak perlu import react-hot-toast
  * langsung di tiap berkas (satu titik yang tahu detail library toast-nya).
- *
- * Catatan: `cn()` (clsx + tailwind-merge) pernah ada di sini tapi tidak
- * pernah dipakai satu kali pun — admin ini memakai inline style, bukan
- * className dinamis. Dihapus bersama kedua dependensinya.
  */
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-/** Dipakai untuk konfirmasi netral (bukan sukses/gagal eksplisit) — mis.
-    "belum tersedia" pada tombol Google/Lupa Password. */
+/** Dipakai untuk konfirmasi netral (bukan sukses/gagal eksplisit). */
 export function showToast(message: string): void {
   toast(message);
 }
@@ -24,19 +21,46 @@ export function showErrorToast(message: string): void {
   toast.error(message);
 }
 
-/**
- * Nama event DOM untuk "data event baru saja disimpan".
- *
- * Dipakai memberi tahu pratinjau (PlaygroundPreview) supaya memuat ulang
- * iframe-nya — iframe menunjuk rute publik dan tidak punya cara tahu data
- * server berubah. Lewat window event, bukan prop, karena penyimpan dan
- * pratinjau sekarang berada di cabang pohon komponen yang berbeda:
- * halaman event mengirim editornya sebagai `children` ke EventPageShell,
- * jadi tidak ada jalur prop di antara keduanya. Pola custom window event
- * ini yang dianjurkan §9 UI-UX-DESIGN-SYSTEM.md.
- */
-export const EVENT_SAVED = "circlesnap:event-saved";
+/** Nilai baru cuma "menetap" ke output setelah `delay`ms tanpa perubahan
+    lagi — dipakai Builder (app/dashboard/builder/[templateId]) supaya
+    live preview tidak me-remount <EventBooth> di SETIAP ketukan tombol,
+    cukup sesaat setelah user berhenti mengetik. */
+export function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
 
-export function notifyEventSaved(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT_SAVED));
+/**
+ * Baca file foto unggahan (Builder → tab Tampilan, foto sambutan) lalu
+ * kecilkan lewat <canvas> sebelum dijadikan data URI — foto asli dari HP
+ * bisa beberapa MB, dan ini disimpan APA ADANYA di dalam JSON EventConfig
+ * di localStorage (lib/dashboard/instances.ts), yang cuma punya jatah
+ * ~5-10MB per origin. Tanpa dikecilkan, satu foto saja bisa menghabiskan
+ * jatah itu.
+ */
+export function readAndCompressImage(file: File, maxDim = 960, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Foto gagal dibaca."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Foto gagal dimuat."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas 2D tidak tersedia."));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }

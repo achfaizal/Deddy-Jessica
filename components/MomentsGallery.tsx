@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { EventConfig } from "@/lib/event";
-import { themeVars } from "@/lib/event";
+import type { EventConfig } from "@/lib/templates";
+import { themeVars } from "@/lib/templates";
 import { fetchMoments, type Moment } from "@/lib/moments";
 import { resolveCopy } from "@/lib/copy";
 import { Play, Video, X } from "./icons";
@@ -55,10 +55,11 @@ function MomentCard({ moment, onOpen }: { moment: Moment; onOpen: () => void }) 
   );
 }
 
-/** Galeri semua momen tamu di event ini — foto & video digabung jadi satu
-    feed, urut terbaru dulu. Ditampilkan sebagai overlay penuh layar dari
-    StepResult, bukan step tersendiri, supaya tamu tetap gampang balik ke
-    struk/unduhan mereka sendiri. */
+/** Galeri momen ACARA ini — foto & video dari SEMUA tamu (diunggah ke
+    server, lihat lib/moments.ts) digabung jadi satu feed, urut terbaru
+    dulu. Ditampilkan sebagai overlay penuh layar dari StepResult/
+    WelcomeScreen, bukan step tersendiri, supaya tamu tetap gampang balik
+    ke struk/unduhan mereka sendiri. */
 export default function MomentsGallery({
   event,
   onClose,
@@ -86,6 +87,20 @@ export default function MomentsGallery({
       dead = true;
     };
   }, [event.code]);
+
+  // fetchMoments() membuat object URL BARU tiap dipanggil (lib/moments.ts)
+  // — kalau tidak di-revoke, tiap buka-tutup galeri membocorkan memori
+  // sedikit demi sedikit. Direvoke di sini, bukan di lib/moments.ts,
+  // karena URL-nya masih dipakai <img>/<video> selama galeri ini terbuka.
+  useEffect(() => {
+    if (!moments) return;
+    return () => {
+      moments.forEach((m) => {
+        if (m.photoUrl) URL.revokeObjectURL(m.photoUrl);
+        if (m.videoUrl) URL.revokeObjectURL(m.videoUrl);
+      });
+    };
+  }, [moments]);
 
   // Elemen langkah (StepResult dkk.) punya animasi masuk (step-enter) yang
   // meninggalkan `transform` terpasang permanen (fill-mode both) — itu

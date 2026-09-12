@@ -2,19 +2,17 @@
  * TEKS ANTARMUKA PLAYGROUND — sumber tunggal.
  *
  * Sebelum file ini ada, semua kalimat di bawah ditulis langsung di dalam
- * komponen (WelcomeScreen, StepVoice, MomentsGallery, EventBooth). Model
- * `CopyOverrides` (lib/models/event.ts) sudah lama mendefinisikan 14 field
- * override, tapi TIDAK ADA satu komponen pun yang membacanya — jadi
- * override-nya tersimpan rapi di data dan tidak pernah berpengaruh.
+ * komponen (WelcomeScreen, StepVoice, EventBooth). `CopyOverrides`
+ * (lib/templates/types.ts) mendefinisikan field override per template.
  *
- * Sekarang: komponen memanggil `resolveCopy(event)`, yang mengembalikan
- * teks final = override klien kalau ada, kalau tidak default di sini.
+ * Komponen memanggil `resolveCopy(event)`, yang mengembalikan teks final =
+ * override template kalau ada, kalau tidak default di sini.
  *
  * ⚠️ Sengaja TIDAK mencakup pesan error kamera/mikrofon — membiarkan klien
  * mengubahnya berisiko membuat panduan pemulihan jadi menyesatkan (catatan
  * yang sama sudah ada di CopyOverrides).
  */
-import type { CopyOverrides } from "./models/event";
+import type { CopyOverrides } from "./templates";
 
 /** Nama pasangan dipecah " & " → "A dan B". Rapuh untuk acara
     non-pernikahan atau format nama lain (temuan 06-T6) — justru itu

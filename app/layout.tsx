@@ -30,10 +30,10 @@ const spaceMono = Space_Mono({
   display: "swap",
 });
 
-/** Katalog font display opsional untuk event dengan tema sendiri (mis.
+/** Katalog font display opsional untuk template dengan tema sendiri (mis.
     pernikahan bertema klasik/floral) — diekspos sebagai variable, dipakai
-    lewat override `--font-display` per-event, bukan default aplikasi.
-    Daftar lengkap + id-nya: FONT_DISPLAY_CSS di lib/adapters/legacy.ts. */
+    lewat override `--font-display` per-template (EventTheme.fontDisplay,
+    lib/templates/types.ts), bukan default aplikasi. */
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
@@ -54,11 +54,10 @@ const marcellus = Marcellus({
   display: "swap",
 });
 
-/* Tambahan katalog font Visual Builder — tiap font WAJIB punya
+/* Katalog font tambahan untuk template baru — tiap font WAJIB punya
    `--font-<id>` (dipakai layar) DAN `--canvas-font-<id>` (dipakai
    compositor saat menggambar teks ke hasil unduhan). Lupa salah satunya
-   = teks di layar dan di foto unduhan beda font; ini pernah kejadian
-   sungguhan, lihat FONT_DISPLAY_CSS di lib/adapters/legacy.ts. */
+   = teks di layar dan di foto unduhan beda font. */
 const cinzel = Cinzel({ subsets: ["latin"], variable: "--font-cinzel", display: "swap" });
 const libre = Libre_Baskerville({
   subsets: ["latin"],
@@ -132,10 +131,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          CSS variable berlapis, jadi nama family aslinya diekspos di sini
          supaya compositor bisa menggambar teks dengan tipografi yang sama
          persis dengan yang terlihat di layar — SATU `--canvas-font-<id>`
-         per font (FONT_DISPLAY_CSS di lib/adapters/legacy.ts), dipasangkan lewat
-         `EventTheme.canvasFontDisplay` (lib/event.ts) tiap kali event
-         mengganti `--font-display`. Lupa menambah pasangannya di sini
-         kalau nambah font baru = hasil unduhan foto salah font. */
+         per font, dipasangkan lewat `EventTheme.canvasFontDisplay`
+         (lib/templates/types.ts) tiap kali template mengganti
+         `--font-display`. Lupa menambah pasangannya di sini kalau nambah
+         font baru = hasil unduhan foto salah font. */
       style={
         {
           "--canvas-display": jakarta.style.fontFamily,

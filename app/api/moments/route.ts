@@ -1,16 +1,21 @@
-import { list } from "@vercel/blob";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { list } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 /**
- * Tidak ada database — daftar momen dibangun langsung dari nama file yang
- * tersimpan (prefix per event code), baik dari Vercel Blob (production)
- * maupun folder lokal (dev, lihat app/api/moments/config). Foto & video
- * satu momen yang sama berbagi nama dasar (momentId = nomor struk tamu,
- * sudah unik per event), jadi cukup dikelompokkan dari ekstensinya. Nama
- * tamu (kalau diisi) tersimpan sebagai sidecar `{momentId}.json` terpisah —
- * lihat lib/moments.ts uploadToBlob/uploadToLocal.
+ * Porting dari project glyka-virtual-photobooth, versi RINGKAS — di sana
+ * rute ini query tabel Postgres `strips`/`sessions`/`assets` (dibuat saat
+ * klaim kuota server-side). Playground ini TIDAK punya server-side
+ * apa pun untuk sesi tamu (kuota cuma localStorage, lihat
+ * lib/templates/index.ts), jadi tidak ada baris "sesi" untuk dijadikan
+ * sumber listing. Sebagai gantinya, daftar momen dibaca LANGSUNG dari
+ * tempat filenya disimpan:
+ *  - mode blob (Vercel): `list()` @vercel/blob, filter prefix
+ *    `moments/{code}/`.
+ *  - mode local (`next dev`): baca folder public/moments-local/{code}/.
+ * Foto (.png) + video (.mp4/.webm) + sidecar nama tamu (.json) yang
+ * berbagi nama dasar (momentId) dikelompokkan jadi satu Moment.
  */
 interface Moment {
   id: string;
@@ -20,132 +25,105 @@ interface Moment {
   guestName?: string;
 }
 
-interface RawEntry {
-  photoUrl?: string;
-  videoUrl?: string;
-  uploadedAt: string;
-  guestName?: string;
-  /** Nama file sidecar JSON, belum dibaca isinya — diselesaikan belakangan
-      lewat finalizeMoments() supaya bisa dibaca paralel (Promise.all),
-      bukan satu-satu berurutan. */
-  jsonName?: string;
-}
+const SAFE_ID = /^[A-Za-z0-9-]+$/;
+const MOMENTS_DIR = path.join(process.cwd(), "public", "moments-local");
 
-function groupByMomentId(
-  names: string[],
-  urlFor: (name: string) => string,
-  uploadedAtFor: (name: string) => string
-): Map<string, RawEntry> {
-  const groups = new Map<string, RawEntry>();
-  for (const name of names) {
+async function listFromBlob(code: string): Promise<Moment[]> {
+  const prefix = `moments/${code}/`;
+  const { blobs } = await list({ prefix });
+
+  const byId = new Map<string, { photoUrl?: string; videoUrl?: string; uploadedAt: string; guestNameUrl?: string }>();
+  for (const b of blobs) {
+    const name = b.pathname.slice(prefix.length);
     const dot = name.lastIndexOf(".");
-    if (dot === -1) continue;
+    if (dot < 0) continue;
     const id = name.slice(0, dot);
     const ext = name.slice(dot + 1).toLowerCase();
-    const uploadedAt = uploadedAtFor(name);
-
-    const entry = groups.get(id) ?? { uploadedAt };
-    if (ext === "png" || ext === "jpg" || ext === "jpeg") entry.photoUrl = urlFor(name);
-    if (ext === "mp4" || ext === "webm") entry.videoUrl = urlFor(name);
-    if (ext === "json") entry.jsonName = name;
-    if (uploadedAt > entry.uploadedAt) entry.uploadedAt = uploadedAt;
-    groups.set(id, entry);
+    const entry = byId.get(id) ?? { uploadedAt: b.uploadedAt.toISOString() };
+    if (ext === "png") entry.photoUrl = b.url;
+    else if (ext === "mp4" || ext === "webm") entry.videoUrl = b.url;
+    else if (ext === "json") entry.guestNameUrl = b.url;
+    byId.set(id, entry);
   }
-  return groups;
+
+  const moments: Moment[] = [];
+  for (const [id, v] of byId) {
+    let guestName: string | undefined;
+    if (v.guestNameUrl) {
+      // Sidecar kecil (bukan database) — kegagalan jaringan/format di
+      // sini bukan alasan menyembunyikan foto/videonya sendiri.
+      guestName = await fetch(v.guestNameUrl)
+        .then((r) => r.json())
+        .then((j: { guestName?: string }) => j.guestName)
+        .catch(() => undefined);
+    }
+    moments.push({ id, photoUrl: v.photoUrl, videoUrl: v.videoUrl, uploadedAt: v.uploadedAt, guestName });
+  }
+  moments.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  return moments;
 }
 
-/** Membaca nama tamu dari tiap sidecar JSON secara paralel, lalu merangkai
-    hasil akhirnya. Gagal baca satu file (rusak/hilang) tidak menjatuhkan
-    seluruh daftar — momen itu tetap tampil, cuma tanpa nama. */
-async function finalizeMoments(
-  groups: Map<string, RawEntry>,
-  readName: (jsonName: string) => Promise<string | undefined>
-): Promise<Moment[]> {
-  const entries = Array.from(groups.entries());
-  await Promise.all(
-    entries.map(async ([, entry]) => {
-      if (!entry.jsonName) return;
-      entry.guestName = await readName(entry.jsonName).catch(() => undefined);
-    })
-  );
+async function listFromLocal(code: string): Promise<Moment[]> {
+  const dir = path.join(MOMENTS_DIR, code);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return []; // folder belum pernah dibuat = belum ada momen sama sekali
+  }
 
-  return entries
-    .map(([id, v]) => ({
+  const byId = new Map<string, { photo?: string; video?: string; json?: string }>();
+  for (const name of names) {
+    const dot = name.lastIndexOf(".");
+    if (dot < 0) continue;
+    const id = name.slice(0, dot);
+    const ext = name.slice(dot + 1).toLowerCase();
+    const entry = byId.get(id) ?? {};
+    if (ext === "png") entry.photo = name;
+    else if (ext === "mp4" || ext === "webm") entry.video = name;
+    else if (ext === "json") entry.json = name;
+    byId.set(id, entry);
+  }
+
+  const moments: Moment[] = [];
+  for (const [id, v] of byId) {
+    if (!v.photo) continue; // tanpa foto, bukan momen (sidecar/video yatim)
+    const st = await stat(path.join(dir, v.photo)).catch(() => null);
+    let guestName: string | undefined;
+    if (v.json) {
+      guestName = await readFile(path.join(dir, v.json), "utf-8")
+        .then((raw) => (JSON.parse(raw) as { guestName?: string }).guestName)
+        .catch(() => undefined);
+    }
+    moments.push({
       id,
-      photoUrl: v.photoUrl,
-      videoUrl: v.videoUrl,
-      uploadedAt: v.uploadedAt,
-      guestName: v.guestName,
-    }))
-    .sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
-}
-
-function parseName(raw: string): string | undefined {
-  const data = JSON.parse(raw) as { name?: string };
-  return data.name || undefined;
+      photoUrl: `/moments-local/${code}/${v.photo}`,
+      videoUrl: v.video ? `/moments-local/${code}/${v.video}` : undefined,
+      uploadedAt: (st?.mtime ?? new Date()).toISOString(),
+      guestName,
+    });
+  }
+  moments.sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  return moments;
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const eventCode = searchParams.get("event")?.toUpperCase();
-  if (!eventCode) {
+  if (!eventCode || !SAFE_ID.test(eventCode)) {
     return NextResponse.json({ error: "Parameter event wajib diisi." }, { status: 400 });
   }
 
-  if (process.env.VERCEL) {
-    const prefix = `moments/${eventCode}/`;
-    // list() Vercel Blob dibatasi 1000 per panggilan — event ramai (banyak
-    // tamu, tiap momen 2-3 file) gampang lewat itu. Ambil semua halaman
-    // lewat cursor, bukan cuma panggilan pertama, supaya momen lama tidak
-    // "hilang" diam-diam dari galeri begitu jumlah file makin banyak.
-    const blobs: Awaited<ReturnType<typeof list>>["blobs"] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await list({ prefix, limit: 1000, cursor });
-      blobs.push(...page.blobs);
-      cursor = page.hasMore ? page.cursor : undefined;
-    } while (cursor);
-    const groups = groupByMomentId(
-      blobs.map((b) => b.pathname.slice(prefix.length)),
-      (name) => blobs.find((b) => b.pathname === `${prefix}${name}`)!.url,
-      (name) => {
-        const uploadedAt = blobs.find((b) => b.pathname === `${prefix}${name}`)!.uploadedAt;
-        return uploadedAt instanceof Date ? uploadedAt.toISOString() : String(uploadedAt);
-      }
-    );
-    const moments = await finalizeMoments(groups, async (jsonName) => {
-      const url = blobs.find((b) => b.pathname === `${prefix}${jsonName}`)!.url;
-      const res = await fetch(url);
-      if (!res.ok) return undefined;
-      return parseName(await res.text());
-    });
-    return NextResponse.json({ moments });
-  }
-
-  // Mode local dev — baca langsung dari public/moments-local/{event}/.
-  const dir = path.join(process.cwd(), "public", "moments-local", eventCode);
-  let files: string[];
   try {
-    files = await readdir(dir);
+    const moments = process.env.VERCEL
+      ? await listFromBlob(eventCode)
+      : await listFromLocal(eventCode);
+    return NextResponse.json({ moments });
   } catch {
+    // Playground ini tanpa database — kalau listing gagal dibaca (Blob
+    // API bermasalah, dsb), galeri tampil kosong daripada mengganggu
+    // tamu yang cuma mau lihat/unduh strip-nya sendiri (K14 pattern yang
+    // sama dipakai di seluruh playground ini).
     return NextResponse.json({ moments: [] });
   }
-
-  const stats = new Map<string, Date>();
-  await Promise.all(
-    files.map(async (f) => {
-      const s = await stat(path.join(dir, f));
-      stats.set(f, s.mtime);
-    })
-  );
-
-  const groups = groupByMomentId(
-    files,
-    (name) => `/moments-local/${eventCode}/${name}`,
-    (name) => (stats.get(name) ?? new Date(0)).toISOString()
-  );
-  const moments = await finalizeMoments(groups, async (jsonName) =>
-    parseName(await readFile(path.join(dir, jsonName), "utf-8"))
-  );
-  return NextResponse.json({ moments });
 }

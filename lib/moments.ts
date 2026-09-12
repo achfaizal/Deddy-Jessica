@@ -1,8 +1,15 @@
 /**
  * MOMEN TAMU
  *
- * Belum ada database. Dua mode penyimpanan tergantung lingkungan (dicek di
- * server lewat /api/moments/config, lihat catatan di sana):
+ * Diporting dari project glyka-virtual-photobooth (2026-09-13) — sebelumnya
+ * modul ini murni IndexedDB per-perangkat (lihat riwayat git), yang berarti
+ * "galeri momen" cuma kelihatan dari HP yang sama, tidak pernah tersimpan
+ * ke satu tempat untuk semua tamu. Untuk acara sungguhan (wedding.ts,
+ * dipakai banyak tamu berbeda HP bersamaan), foto/video sekarang diunggah
+ * ke server supaya benar-benar terkumpul di satu tempat.
+ *
+ * Dua mode penyimpanan tergantung lingkungan (dicek di server lewat
+ * /api/moments/config, lihat catatan di sana):
  *
  *  - Local dev (`next dev` di komputer sendiri): ditulis ke
  *    public/moments-local/ di filesystem lokal, lewat upload biasa ke
@@ -13,9 +20,20 @@
  *    suara bisa sampai ~10MB, di atas batas body request Vercel Functions
  *    (4.5MB).
  *
- * Foto & video satu momen berbagi momentId (nomor struk tamu) sebagai nama
- * dasar file, supaya gampang dikelompokkan lagi saat dibaca di
- * /api/moments.
+ * ⚠️ Beda dari glyka-virtual-photobooth: versi INI tidak punya Postgres
+ * sama sekali (playground ini sengaja tanpa database, CLAUDE.md §2).
+ * Listing momen (fetchMoments) dibaca LANGSUNG dari Blob API / filesystem
+ * lokal lewat GET /api/moments (lihat app/api/moments/route.ts), bukan
+ * dari tabel `strips`/`sessions`/`assets`. Nama tamu dititipkan lewat
+ * sidecar JSON kecil per momen, bukan kolom database.
+ *
+ * photoUrl/videoUrl yang dikembalikan fetchMoments() SEKARANG url server
+ * asli (Blob URL publik / path /moments-local/...), BUKAN lagi object URL
+ * lokal (`URL.createObjectURL`) — MomentsGallery.tsx masih memanggil
+ * `URL.revokeObjectURL()` atas url ini saat galeri ditutup (peninggalan
+ * versi IndexedDB lama); itu no-op aman untuk url yang bukan skema
+ * `blob:`, jadi sengaja tidak dihapus supaya tidak menyentuh komponen
+ * cuma untuk pembersihan yang sudah aman dengan sendirinya.
  */
 import { upload } from "@vercel/blob/client";
 
@@ -45,12 +63,6 @@ async function uploadToBlob(
   video?: Blob | null,
   guestName?: string
 ) {
-  // allowOverwrite diatur di server (onBeforeGenerateToken di
-  // app/api/moments/upload/route.ts) — kuota per event disimpan di
-  // localStorage tamu, bukan di server, jadi kalau localStorage-nya
-  // kehapus/reset, nomor struk (momentId) bisa kebentur lagi dari 1.
-  // Overwrite lebih baik daripada upload gagal total dan tamu kehilangan
-  // momennya.
   await upload(`moments/${code}/${momentId}.png`, photo, {
     access: "public",
     handleUploadUrl: "/api/moments/upload",
@@ -69,11 +81,12 @@ async function uploadToBlob(
     });
   }
 
-  // Sidecar JSON kecil berisi nama tamu — file terpisah, bukan ditambahkan
-  // sebagai query/metadata Blob, supaya /api/moments (GET) bisa membacanya
-  // dengan cara yang sama persis di mode local maupun blob.
+  // Sidecar kecil berisi nama tamu — dibaca ulang GET /api/moments
+  // (versi glyka menulis ini ke Postgres `sessions.guest_name`, yang
+  // tidak ada di playground ini).
   if (guestName) {
-    await upload(`moments/${code}/${momentId}.json`, JSON.stringify({ name: guestName }), {
+    const sidecar = new Blob([JSON.stringify({ guestName })], { type: "application/json" });
+    await upload(`moments/${code}/${momentId}.json`, sidecar, {
       access: "public",
       handleUploadUrl: "/api/moments/upload",
       contentType: "application/json",
@@ -99,6 +112,16 @@ async function uploadToLocal(
   if (!res.ok) throw new Error("Upload momen (local) gagal.");
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Unggah gagal → coba ulang otomatis 3 kali dengan jeda menaik. Tetap
+    gagal → dilempar ke pemanggil (StepResult.tsx membungkusnya try/catch
+    dan diam-diam melanjutkan — tamu tetap dapat struknya sendiri lewat
+    unduhan manual, K14 "gagal pelan" yang sama dipakai di seluruh
+    playground ini). Tidak ada penandaan "pending_upload" server-side di
+    sini — itu butuh baris sesi Postgres yang tidak ada di playground ini. */
 export async function uploadMoment({
   eventCode,
   momentId,
@@ -114,12 +137,23 @@ export async function uploadMoment({
 }): Promise<void> {
   const code = eventCode.toUpperCase();
   const mode = await storageMode();
+  const attempt = () =>
+    mode === "blob"
+      ? uploadToBlob(code, momentId, photo, video, guestName)
+      : uploadToLocal(code, momentId, photo, video, guestName);
 
-  if (mode === "blob") {
-    await uploadToBlob(code, momentId, photo, video, guestName);
-  } else {
-    await uploadToLocal(code, momentId, photo, video, guestName);
+  const delaysMs = [1000, 3000, 8000]; // jeda menaik, 3 percobaan
+  let lastError: unknown;
+  for (let i = 0; i <= delaysMs.length; i++) {
+    try {
+      await attempt();
+      return;
+    } catch (e) {
+      lastError = e;
+      if (i < delaysMs.length) await sleep(delaysMs[i]);
+    }
   }
+  throw lastError;
 }
 
 export async function fetchMoments(eventCode: string): Promise<Moment[]> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { tokensFor } from "@/lib/event";
+import { tokensFor } from "@/lib/templates";
 import { useSession } from "@/lib/store";
 import { ChevronLeft, ChevronRight } from "./icons";
 
@@ -11,9 +11,9 @@ export default function StepFrame() {
 
   if (!event) return null;
 
-  // `templates` sudah persis daftar yang diizinkan event ini, dalam urutan
-  // carousel yang benar — diisi attach() dari repository (lib/repo/), bukan
-  // difilter dari katalog statis lagi. Lihat lib/store.ts.
+  // `templates` sudah persis daftar bingkai template ini, dalam urutan
+  // carousel yang benar — diisi attach() dari PlaygroundTemplate.frames.
+  // Lihat lib/store.ts.
   const allowed = templates;
   const tokens = tokensFor(event);
   const active = allowed[index];
@@ -27,11 +27,7 @@ export default function StepFrame() {
 
   return (
     <section className="step-enter mx-auto max-w-md">
-      <p className="mx-auto max-w-lg text-center text-[15px] leading-relaxed text-smoke">
-        {event.greeting}
-      </p>
-
-      <div className="mt-4 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         {allowed.length > 1 && (
           <button
             onClick={prev}
@@ -63,11 +59,19 @@ export default function StepFrame() {
                     "repeating-linear-gradient(45deg, #2E2658 0 6px, #1E1B4B 6px 12px)",
                 }}
               />
+              {/* max-h dinaikkan dari 30dvh — bingkai berasio sangat ramping
+                  (mis. wedding.ts, ~0.41-0.56 lebar/tinggi) jadi kebatas oleh
+                  TINGGI duluan di HP, hasilnya preview selebar ~90-120px,
+                  detail ornamennya nyaris tidak kelihatan. 38dvh masih aman
+                  di layar pendek (field info + tombol "Pilih bingkai ini" +
+                  dots di bawahnya tetap muat tanpa scroll di viewport 390×
+                  ~700px yang jadi patokan booth ini) dan berlaku untuk semua
+                  template, bukan cuma yang rasionya ekstrem. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={active.overlay}
                 alt=""
-                className="relative block max-h-[30dvh] max-w-[260px] h-auto w-auto object-contain"
+                className="relative block max-h-[38dvh] max-w-[280px] h-auto w-auto object-contain"
               />
             </div>
           </button>
@@ -85,13 +89,13 @@ export default function StepFrame() {
       </div>
 
       <div key={`${active.id}-info`} className="frame-slide-in mt-3 text-center">
-        <h3 className="font-display text-base leading-tight tracking-tight">{active.name}</h3>
-        <p className="mt-1 font-mono text-[10px] text-smoke">
-          {active.slots.length} foto · {active.printSize}
-        </p>
-        <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-snug text-smoke">
-          {active.blurb}
-        </p>
+        {/* text-paper WAJIB — tanpa ini h3 mewarisi `color` dari <body>
+            (globals.css), yang nilainya warna tema GLOBAL (bukan tema
+            event aktif, itu cuma CSS variable di wrapper EventBooth,
+            tidak ikut ke body). Di tema terang macam Botanical itu jadi
+            cream-di-atas-cream, nyaris tidak kelihatan — baru ketahuan
+            sekarang karena teks lain di sekitarnya baru saja dihapus. */}
+        <h3 className="font-display text-base leading-tight tracking-tight text-paper">{active.name}</h3>
       </div>
 
       {allowed.length > 1 && (

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { compose } from "@/lib/compositor";
-import { tokensFor } from "@/lib/event";
+import { tokensFor } from "@/lib/templates";
 import { useSession } from "@/lib/store";
 
 /**
