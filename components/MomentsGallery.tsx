@@ -2,22 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import type { EventConfig } from "@/lib/templates";
 import { themeVars } from "@/lib/templates";
 import { fetchMoments, type Moment } from "@/lib/moments";
 import { resolveCopy } from "@/lib/copy";
-import { Play, Video, X } from "./icons";
+import { ImageOff, Play, Video, X } from "./icons";
 
 /** Satu kartu momen — kalau ada video, VIDEO itu yang tampil sebagai
     thumbnail (bukan foto), karena itu yang sebenarnya jadi hasil akhir
     tamu itu (foto dijahit + suaranya). Foto polos cuma dipakai kalau
     memang tidak ada rekaman suara. Tidak ada crop paksa ke rasio tertentu
     — bingkainya harus kelihatan utuh, biar kartu jadi lebih tinggi/pendek
-    tergantung bentuk aslinya. */
+    tergantung bentuk aslinya.
+
+    Foto tamu diunggah ke Vercel Blob (lib/moments.ts) ukuran PENUH
+    (1080×1920 dkk, ~2MB) — dipakai next/image (bukan <img> polos) di sini
+    supaya browser minta versi TER-RESIZE untuk thumbnail kecil ini, bukan
+    men-download 2MB penuh cuma untuk kotak selebar ~180px. Foto ukuran
+    penuh tetap dipakai di popup pratinjau (di bawah) & unduhan, tidak
+    disentuh.
+
+    ⚠️ Ditemukan di uji lapangan (2026-09-13, 4G): thumbnail sempat gagal
+    tampil (ikon broken-image bawaan browser) walau file di Blob valid —
+    kemungkinan sinyal seluler lambat/putus saat decode file besar.
+    imgError state di bawah menggantinya dengan fallback yang lebih layak
+    dilihat tamu, BUKAN cuma mengandalkan resize saja. */
 function MomentCard({ moment, onOpen }: { moment: Moment; onOpen: () => void }) {
+  const [imgError, setImgError] = useState(false);
+
   return (
     <button onClick={onOpen} className="group block w-full text-left">
-      <div className="relative overflow-hidden rounded-xl">
+      <div className="relative overflow-hidden rounded-xl bg-film">
         {moment.videoUrl ? (
           <video
             src={moment.videoUrl}
@@ -26,16 +42,26 @@ function MomentCard({ moment, onOpen }: { moment: Moment; onOpen: () => void }) 
             preload="metadata"
             className="block h-auto w-full transition group-hover:scale-105"
           />
-        ) : moment.photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+        ) : moment.photoUrl && !imgError ? (
+          <Image
             src={moment.photoUrl}
             alt=""
-            className="block h-auto w-full transition group-hover:scale-105"
+            // width/height di sini CUMA rasio dasar untuk next/image
+            // menghitung ukuran unduhan (bukan dimensi tampil akhir) —
+            // style width:100%/height:auto di bawah yang benar-benar
+            // menentukan tampilannya, jadi bingkai apa pun rasionya (wedding
+            // 0.56/0.4, atau kotak 1:1 di template lain) tetap proporsional,
+            // tidak dipaksa/terdistorsi ke rasio 480:854 ini.
+            width={480}
+            height={854}
+            sizes="(min-width: 640px) 33vw, 50vw"
+            style={{ width: "100%", height: "auto" }}
+            className="block transition group-hover:scale-105"
+            onError={() => setImgError(true)}
           />
         ) : (
-          <div className="grid aspect-[3/4] w-full place-items-center bg-film text-smoke">
-            <Video className="h-6 w-6" />
+          <div className="grid aspect-[3/4] w-full place-items-center text-smoke">
+            {imgError ? <ImageOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
           </div>
         )}
         {moment.videoUrl && (

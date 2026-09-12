@@ -10,6 +10,7 @@ export {
   ArrowLeft,
   Download,
   Image as ImageIcon,
+  ImageOff,
   FileImage,
   Video,
   Share2,
