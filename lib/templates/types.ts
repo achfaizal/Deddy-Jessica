@@ -168,6 +168,14 @@ export interface EventTheme {
       lain TIDAK berubah. Dirender EventBooth.tsx (satu-satunya wrapper
       yang otomatis melingkupi semua langkah). */
   brandWatermark?: string;
+  /** Sembunyikan tautan "← Semua template" (pojok kiri atas, EventBooth.tsx)
+      — diminta eksplisit untuk template hasil order client sungguhan
+      (mis. wedding.ts) yang dikecualikan dari katalog publik DAN root "/"
+      diarahkan langsung ke template itu (lihat app/page.tsx repo deploy
+      khusus acara): tautan itu jadi mubazir (klik-nya cuma redirect balik
+      ke template yang sama). Kosong/false (bawaan) = tautan tetap tampil,
+      template lain TIDAK berubah. */
+  hideCatalogLink?: boolean;
   /** Nilai `--font-display` pengganti, mis. `var(--font-playfair)`. */
   fontDisplay?: string;
   /** Pasangan wajib dari `fontDisplay` — lib/compositor.ts TIDAK BISA

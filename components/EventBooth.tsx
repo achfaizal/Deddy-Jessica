@@ -133,6 +133,7 @@ export default function EventBooth({
   // selalu menang, lihat komentar EventTheme.decorSvg di types.ts).
   const decorSvg = !decorUrl ? theme?.decorSvg : undefined;
   const brandWatermark = theme?.brandWatermark;
+  const hideCatalogLink = theme?.hideCatalogLink ?? false;
   // Dulu cuma dirender di WelcomeScreen (layar sambutan doang) — diminta
   // eksplisit supaya tampil di SEMUA langkah, jadi dipindah ke sini
   // (wrapper bersama tiap step) dan DIHAPUS dari WelcomeScreen supaya
@@ -298,13 +299,19 @@ export default function EventBooth({
       {/* Playground berisi banyak template (lib/templates/index.ts) — tautan
           ini satu-satunya jalan balik ke katalog dari dalam sesi, jadi tamu
           yang salah pilih atau cuma mau lihat-lihat tidak terjebak. z-20:
-          di atas dekorasi sudut (z-0) dan konten (z-10). */}
-      <Link
-        href="/"
-        className="fixed left-3 top-3 z-20 rounded-full bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-smoke ring-1 ring-edge backdrop-blur transition hover:text-paper sm:left-4 sm:top-4"
-      >
-        ← Semua template
-      </Link>
+          di atas dekorasi sudut (z-0) dan konten (z-10).
+          Disembunyikan kalau theme.hideCatalogLink true (mis. wedding.ts di
+          repo deploy khusus acara — root "/" redirect langsung ke template
+          itu, tautan ini jadi mubazir/klik-nya cuma redirect balik ke
+          template yang sama). Kosong/false = tampil seperti biasa. */}
+      {!hideCatalogLink && (
+        <Link
+          href="/"
+          className="fixed left-3 top-3 z-20 rounded-full bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-smoke ring-1 ring-edge backdrop-blur transition hover:text-paper sm:left-4 sm:top-4"
+        >
+          ← Semua template
+        </Link>
+      )}
       {decorUrl && (
         <div aria-hidden className="pointer-events-none fixed inset-0 z-10 overflow-hidden">
           {/* Bunga sudut dipakai ulang dari aset bingkai — satu gambar,
