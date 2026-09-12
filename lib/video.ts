@@ -120,12 +120,36 @@ function family(prop: string, fallback: string) {
   return v || fallback;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+/** 🐛 Bug ditemukan (2026-09-13, uji lapangan — in-app browser Telegram):
+    kartu video keluar dengan latar polos (fallback vc.bg, BUKAN bg-video.png
+    yang seharusnya) walau file asetnya sendiri sehat (dicek: 200, header
+    CORS benar) dan koneksi WiFi stabil. Dua penyebab sekaligus:
+    1. `img.crossOrigin = "anonymous"` di sini TIDAK PERNAH diperlukan —
+       bgVideo/decorUrl SELALU aset same-origin (public/templates/...
+       milik proyek sendiri), bukan gambar lintas domain. In-app WebView
+       (Telegram/WA/Instagram, jauh lebih terbatas dari Chrome/Safari
+       asli) kadang menangani atribut ini secara berbeda dan diam-diam
+       gagal me-load gambar yang sebenarnya bisa diakses biasa — dihapus
+       sepenuhnya, tidak ada gambar di sini yang butuh mode CORS.
+    2. Tidak ada timeout — WebView yang connection pooling-nya lebih
+       terbatas bisa menggantung lama sebelum akhirnya onerror terpicu
+       (atau tidak terpicu sama sekali), 8 detik dianggap cukup longgar
+       untuk aset lokal beberapa ratus KB tapi tetap membatasi. */
+function loadImage(src: string, timeoutMs = 8000): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Gambar tidak bisa dimuat: ${src}`));
+    const timer = setTimeout(() => {
+      img.onload = img.onerror = null;
+      reject(new Error(`Gambar timeout dimuat: ${src}`));
+    }, timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error(`Gambar tidak bisa dimuat: ${src}`));
+    };
     img.src = src;
   });
 }
