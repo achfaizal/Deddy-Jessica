@@ -133,6 +133,7 @@ export default function EventBooth({
   // selalu menang, lihat komentar EventTheme.decorSvg di types.ts).
   const decorSvg = !decorUrl ? theme?.decorSvg : undefined;
   const brandWatermark = theme?.brandWatermark;
+  const brandLogoUrl = theme?.brandLogoUrl;
   const hideCatalogLink = theme?.hideCatalogLink ?? false;
   // Dulu cuma dirender di WelcomeScreen (layar sambutan doang) — diminta
   // eksplisit supaya tampil di SEMUA langkah, jadi dipindah ke sini
@@ -311,6 +312,21 @@ export default function EventBooth({
         >
           ← Semua template
         </Link>
+      )}
+      {/* Logo kecil (EventTheme.brandLogoUrl) — versi bergambar dari
+          brandWatermark, tampil tengah-atas di SEMUA langkah (welcome
+          sampai struk) karena ditaruh di wrapper ini, sama seperti
+          watermark teks di bawah. Opacity rendah (samar) DAN ukuran kecil
+          diminta eksplisit — "jangan terlalu tebal". pointer-events-none
+          supaya tidak pernah mencegat tap apa pun di bawahnya. */}
+      {brandLogoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={brandLogoUrl}
+          alt=""
+          aria-hidden
+          className="pointer-events-none fixed left-1/2 top-3 z-20 h-6 w-6 -translate-x-1/2 opacity-40 sm:top-4 sm:h-7 sm:w-7"
+        />
       )}
       {decorUrl && (
         <div aria-hidden className="pointer-events-none fixed inset-0 z-10 overflow-hidden">

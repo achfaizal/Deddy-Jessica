@@ -176,6 +176,14 @@ export interface EventTheme {
       ke template yang sama). Kosong/false (bawaan) = tautan tetap tampil,
       template lain TIDAK berubah. */
   hideCatalogLink?: boolean;
+  /** Logo kecil (PNG/SVG) tampil di TENGAH-ATAS layar, di SEMUA langkah —
+      diminta eksplisit untuk template hasil order client sungguhan (mis.
+      wedding.ts) sebagai versi bergambar dari brandWatermark (teks kecil
+      di bawah), bukan pengganti. Opacity sengaja rendah & ukuran kecil
+      (lihat EventBooth.tsx) — "jangan terlalu tebal", diminta eksplisit.
+      Kosong (bawaan) = tidak ada logo sama sekali, template lain TIDAK
+      berubah. */
+  brandLogoUrl?: string;
   /** Nilai `--font-display` pengganti, mis. `var(--font-playfair)`. */
   fontDisplay?: string;
   /** Pasangan wajib dari `fontDisplay` — lib/compositor.ts TIDAK BISA

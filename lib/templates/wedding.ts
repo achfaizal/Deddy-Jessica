@@ -92,6 +92,10 @@ const event: EventConfig = {
     // Watermark kecil di bawah layar, tampil di semua langkah — diminta
     // eksplisit karena ini template hasil order client sungguhan.
     brandWatermark: "© 2026 Circle Snap. All rights reserved.",
+    // Logo bergambar di tengah-atas — versi visual dari watermark teks di
+    // atas, tampil di semua langkah yang sama. Samar (opacity 40%, kecil)
+    // diminta eksplisit, "jangan terlalu tebal".
+    brandLogoUrl: "/logo/1.png",
     // Repo deploy khusus acara ini (Deddy-Jessica) — root "/" sudah
     // redirect langsung ke template ini (app/page.tsx), jadi tautan
     // "← Semua template" mubazir buat tamu (klik-nya cuma redirect balik
